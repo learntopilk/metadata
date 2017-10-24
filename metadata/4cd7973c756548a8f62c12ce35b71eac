@@ -1,0 +1,3932 @@
+/**
+ * craftyjs 0.8.0
+ * http://craftyjs.com/
+ *
+ * Copyright 2017, Louis Stowasser
+ * Licensed under the MIT license.
+ */
+
+
+(function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+// shim for using process in browser
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+function defaultSetTimout() {
+    throw new Error('setTimeout has not been defined');
+}
+function defaultClearTimeout () {
+    throw new Error('clearTimeout has not been defined');
+}
+(function () {
+    try {
+        if (typeof setTimeout === 'function') {
+            cachedSetTimeout = setTimeout;
+        } else {
+            cachedSetTimeout = defaultSetTimout;
+        }
+    } catch (e) {
+        cachedSetTimeout = defaultSetTimout;
+    }
+    try {
+        if (typeof clearTimeout === 'function') {
+            cachedClearTimeout = clearTimeout;
+        } else {
+            cachedClearTimeout = defaultClearTimeout;
+        }
+    } catch (e) {
+        cachedClearTimeout = defaultClearTimeout;
+    }
+} ())
+function runTimeout(fun) {
+    if (cachedSetTimeout === setTimeout) {
+        //normal enviroments in sane situations
+        return setTimeout(fun, 0);
+    }
+    // if setTimeout wasn't available but was latter defined
+    if ((cachedSetTimeout === defaultSetTimout || !cachedSetTimeout) && setTimeout) {
+        cachedSetTimeout = setTimeout;
+        return setTimeout(fun, 0);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedSetTimeout(fun, 0);
+    } catch(e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't trust the global object when called normally
+            return cachedSetTimeout.call(null, fun, 0);
+        } catch(e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error
+            return cachedSetTimeout.call(this, fun, 0);
+        }
+    }
+
+
+}
+function runClearTimeout(marker) {
+    if (cachedClearTimeout === clearTimeout) {
+        //normal enviroments in sane situations
+        return clearTimeout(marker);
+    }
+    // if clearTimeout wasn't available but was latter defined
+    if ((cachedClearTimeout === defaultClearTimeout || !cachedClearTimeout) && clearTimeout) {
+        cachedClearTimeout = clearTimeout;
+        return clearTimeout(marker);
+    }
+    try {
+        // when when somebody has screwed with setTimeout but no I.E. maddness
+        return cachedClearTimeout(marker);
+    } catch (e){
+        try {
+            // When we are in I.E. but the script has been evaled so I.E. doesn't  trust the global object when called normally
+            return cachedClearTimeout.call(null, marker);
+        } catch (e){
+            // same as above but when it's a version of I.E. that must have the global object for 'this', hopfully our context correct otherwise it will throw a global error.
+            // Some versions of I.E. have different rules for clearTimeout vs setTimeout
+            return cachedClearTimeout.call(this, marker);
+        }
+    }
+
+
+
+}
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = runTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
+            }
+        }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    runClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        runTimeout(drainQueue);
+    }
+};
+
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
+
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],2:[function(require,module,exports){
+
+function createDeprecatedAlias(baseObject, oldName, newName) {
+    Object.defineProperty(baseObject, oldName, {
+        enumerable: false,
+        configurable: false,
+        get: function() { return baseObject[newName]; },
+        set: function(value) { baseObject[newName] = value; }
+    });
+}
+
+module.exports = {
+    defineAliases: function defineAliases(Crafty) {
+        createDeprecatedAlias(Crafty, "image_whitelist", "imageWhitelist");
+    }
+};
+
+
+},{}],3:[function(require,module,exports){
+var Crafty = require('../core/core.js');
+
+
+// ToggleInput contract
+// Must provide an isDown method which returns whether the input is down or not
+// May provide a destroy method which can be used for cleanup
+
+
+
+
+// MouseButtonToggleInput
+function MouseButtonToggleInput(button) {
+    Crafty.mouseObjs++;
+    this.button = button;
+}
+
+MouseButtonToggleInput.prototype = {
+    isDown: function() {
+        return Crafty.mouseButtonsDown[this.button];
+    },
+    destroy: function() {
+        Crafty.mouseObjs--;
+    }
+};
+
+// KeyboardToggleInput
+function KeyboardToggleInput(key) {
+    this.key = key;
+}
+
+KeyboardToggleInput.prototype = {
+    isDown: function() {
+        return Crafty.keydown[this.key];
+    }
+};
+
+
+// ToggleInputGroup
+function ToggleInputGroup(inputs) {
+    this.inputs = inputs;
+}
+
+// Handles a group of inputs that represent the same toggle state
+ToggleInputGroup.prototype = {
+    timeDown: null,
+    isActive: function () {
+        for (var i in this.inputs) {
+            var input = this.inputs[i];
+            if (input.isDown()) {
+                if (!this.timeDown) {
+                    this.timeDown = Date.now();
+                }
+                return true;
+            }
+        }
+        delete this.timeDown;
+        return false;
+    },
+    destroy: function() {
+        for (var i in this.inputs) {
+            if (typeof this.inputs[i].destroy === 'function') {
+                this.inputs[i].destroy();
+            }
+        }
+    }
+};
+
+// Provides abstractions for specific types of inputs:
+// - DirectionalInput: {x, y}
+// - TriggerInputDown/TriggerInputUp
+
+/**@
+ * #Controls
+ * @category Controls
+ * @kind System
+ * 
+ * A built-in system for linking specific inputs to general types of input events.
+ * 
+ * @note The methods provided by this system are likely to change in future verisons of Crafty, as more input types are supported.
+ * 
+ * @trigger TriggerInputDown - When a trigger group is activated - {name}
+ * @trigger TriggerInputUp - When a trigger group is released - {name, downFor}
+ * @trigger DirectionalInput - When a directional input changes - {name, x, y}
+ * 
+ * 
+ */
+Crafty.s("Controls", {
+    init: function () {
+        // internal object to store definitions
+        this._dpads = {};
+        this._triggers = {};
+    },
+
+    events: {
+        "EnterFrameInput": function () {
+            this.runEvents();
+        },
+        "KeyDown": function () {
+            this.updateTriggers();
+        },
+        "KeyUp": function () {
+            this.updateTriggers();
+        },
+        "MouseDown": function (e) {
+            this.updateTriggers();
+        },
+        "MouseUp": function (e) {
+            this.updateTriggers();
+        },
+    },
+
+    // Runs through all triggers and updates their status
+    updateTriggers: function(e) {
+        for (var t in this._triggers) {
+            var trigger = this._triggers[t];
+            this.updateTriggerInput(trigger);
+        }
+    },
+
+    runEvents: function () { 
+        // Trigger DirectionalInput events for dpads
+        for (var d in this._dpads) {
+            var dpad = this._dpads[d];
+            dpad.oldX = dpad.x;
+            dpad.oldY = dpad.y;
+            this.updateDpadInput(dpad, dpad.multipleDirectionBehavior);
+            this.updateActiveDirection(dpad, dpad.normalize);
+            dpad.event.x = dpad.x;
+            dpad.event.y = dpad.y;
+            if (dpad.x !== dpad.oldX || dpad.y !== dpad.oldY) {
+                Crafty.trigger("DirectionalInput", dpad.event);
+            }
+        }
+    },
+
+    getDpad: function (name) {
+        return this._dpads[name];
+    },
+
+    isTriggerDown: function(name) {
+        return this._triggers[name].active;
+    },
+
+    /**@
+     * #.defineTriggerGroup
+     * @comp Controls
+     * @kind Method
+     * 
+     * @sign defineTriggerGroup(string name, obj definition)
+     * @param name - a name for the trigger group
+     * @param definition - an object which defines the inputs for the trigger
+     * 
+     * A trigger group is a set of togglable inputs mapped to the same event.  
+     * If any of the inputs are down, the trigger is considered down.  If all are up, it is considered up.  
+     * When the trigger state changes, a `TriggerInputUp` or `TriggerInputDown` event is fired.
+     * 
+     * The definition object lists the inputs that are mapped to the trigger:
+     * - `keys`: An array of Crafty keycodes
+     * - `mouseButtons`: An array of Crafty mouse button codes
+     * 
+     * @example
+     * ~~~
+     * // Define a trigger group mapped to the left mouse button and the A and B keys.
+     * Crafty.s("Controls").defineTriggerGroup("MyTrigger", {
+     *   mouseButtons: [Crafty.mouseButtons.LEFT],
+     *   keys: [Crafty.keys.A, Crafty.keys.B]
+     * });
+     * ~~~
+     * 
+     * @see Crafty.mouseButtons
+     * @see Crafty.keys
+     * @see Controllable
+     */
+    defineTriggerGroup: function(name, definition) {
+        var inputs;
+        if (Array.isArray(definition)) {
+            inputs = definition;
+        } else {
+            inputs = [];
+            if (definition.mouseButtons) {
+                for (var b in definition.mouseButtons){
+                    inputs.push(new MouseButtonToggleInput(definition.mouseButtons[b]));
+                }
+            }
+            if (definition.keys) {
+                for (var k in definition.keys) {
+                    inputs.push(new KeyboardToggleInput(definition.keys[k]));
+                }
+            }
+        }
+        if (this._triggers[name]) {
+            this._triggers[name].input.destroy();
+        }
+        this._triggers[name] = {
+            name: name,
+            input: new ToggleInputGroup(inputs),
+            downFor: 0,
+            active: false
+        };
+    },
+
+    /**@
+     * #.defineDpad
+     * @comp Controls
+     * @kind Method
+     * 
+     * @sign defineDpad(string name, obj definition[, obj options])
+     * @param name - a name for the dpad input
+     * @param definition - an object which defines the inputs and directions for the dpad
+     * @param options - a set of options for the dpad
+     * 
+     * A dpad is a type of directional control which maps a set of triggers to a set of directions.
+     * 
+     * The options object has two properties:
+     * - `normalize` *(bool)*: If true, the directional input will be normalized to a unit vector.  Defaults to false.
+     * - `multipleDirectionBehavior` *(string)*: How to behave when multiple directions are active at the same time.  Values are "first", "last", and "all".  Defaults to "all".
+     * 
+     * @example
+     * ~~~
+     * // Define a two-direction dpad, with two keys each bound to the right and left directions
+     * Crafty.s("Controls").defineDpad("MyDpad", {
+     *   {RIGHT_ARROW: 0, LEFT_ARROW: 180, D: 0, A: 180}
+     * });
+     * ~~~
+     * 
+     * @see Crafty.keys
+     * @see Controllable
+     * @see Multiway
+     */
+    defineDpad: function (name, definition, options) {
+        var directionDict = {};
+        for (var k in definition) {
+            var direction = definition[k];
+            var keyCode = Crafty.keys[k] || k;
+
+            // create a mapping of directions to all associated keycodes
+            if (!directionDict[direction]) {
+                directionDict[direction] = [];
+            }
+            directionDict[direction].push(new KeyboardToggleInput(keyCode));
+        }
+
+        // Create a useful definition from the input format that tracks state
+        var parsedDefinition = {};
+        for (var d in directionDict) {
+            parsedDefinition[d] = {
+                input: new ToggleInputGroup(directionDict[d]),
+                active: false,
+                n: this.parseDirection(d)
+            };
+        }
+        if (typeof options === 'undefined') {
+            options = {};
+        }
+        if (typeof options.normalize === 'undefined') {
+            options.normalize = false;
+        }
+        if (typeof options.multipleDirectionBehavior === 'undefined') {
+            options.multipleDirectionBehavior = "all";
+        }
+        // Create the fully realized dpad object
+          // Store the name/definition pair
+        if (this._dpads[name]) {
+            for (d in this._dpads[name].parsedDefinition) {
+                this._dpads[name].parsedDefinition[d].input.destroy();
+            }
+            delete this._dpads[name];
+        }
+        this._dpads[name] = {
+            name: name,
+            directions: parsedDefinition,
+            x: 0,
+            y: 0,
+            oldX: 0,
+            oldY: 0,
+            event: { x: 0, y: 0, name: name },
+            normalize: options.normalize,
+            multipleDirectionBehavior: options.multipleDirectionBehavior
+        };
+    },
+
+    // Takes an amount in degrees and converts it to an x/y object.
+    // Clamps to avoid rounding issues with sin/cos
+    parseDirection: function (direction) {
+        return {
+            x: Math.round(Math.cos(direction * (Math.PI / 180)) * 1000) / 1000,
+            y: Math.round(Math.sin(direction * (Math.PI / 180)) * 1000) / 1000
+        };
+    },
+
+    // dpad definition is a map of directions to keys array and active flag
+    updateActiveDirection: function (dpad, normalize) {
+        dpad.x = 0;
+        dpad.y = 0;
+        for (var d in dpad.directions) {
+            var dir = dpad.directions[d];
+            if (!dir.active) continue;
+            dpad.x += dir.n.x;
+            dpad.y += dir.n.y;
+        }
+
+        // Normalize
+        if (normalize) {
+            var m = Math.sqrt(dpad.x * dpad.x + dpad.y * dpad.y);
+            if (m > 0) {
+                dpad.x = dpad.x / m;
+                dpad.y = dpad.y / m;
+            }
+        }
+    },
+
+    updateTriggerInput: function (trigger) {
+        if (!trigger.active) {
+            if (trigger.input.isActive()) {
+                trigger.downFor = Date.now() - trigger.input.timeDown;
+                trigger.active = true;
+                Crafty.trigger("TriggerInputDown", trigger);
+            }
+        } else {
+            if (!trigger.input.isActive()) {
+                trigger.active = false;
+                Crafty.trigger("TriggerInputUp", trigger);
+                trigger.downFor = 0;
+            }
+        }
+    },
+
+    // Has to handle three cases concerning multiple active input groups:
+    // - "all": all directions are active
+    // - "last": one direction at a time, new directions replace old ones
+    // - "first": one direction at a time, new directions are ignored while old ones are still active 
+    updateDpadInput: function (dpad, multiBehavior) {
+        var d, dir;
+        var winner;
+
+        for (d in dpad.directions) {
+            dir = dpad.directions[d];
+            dir.active = false;
+
+            if (dir.input.isActive()) {
+                if (multiBehavior === "all") {
+                    dir.active = true;
+                } else {
+                    if (!winner) {
+                        winner = dir;
+                    } else {
+                        if (multiBehavior === "first") {
+                            if (winner.input.timeDown > dir.input.timeDown) {
+                                winner = dir;
+                            }
+                        }
+                        if (multiBehavior === "last") {
+                            if (winner.input.timeDown < dir.input.timeDown) {
+                                winner = dir;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        // If we picked a winner, set it active
+        if (winner) winner.active = true;
+    }
+});
+},{"../core/core.js":9}],4:[function(require,module,exports){
+var Crafty = require('../core/core.js');
+
+/**@
+ * #Draggable
+ * @category Controls
+ * @kind Component
+ * Enable drag and drop of the entity. Listens to events from `MouseDrag` and moves entity accordingly.
+ *
+ * @see MouseDrag
+ */
+Crafty.c("Draggable", {
+    _origX: null,
+    _origY: null,
+    _oldX: null,
+    _oldY: null,
+    _dir: null,
+
+    init: function () {
+        this.requires("MouseDrag");
+        this.bind("StartDrag", this._startDrag)
+            .bind("Dragging", this._drag);
+    },
+
+    remove: function() {
+        this.unbind("StartDrag", this._startDrag)
+            .unbind("Dragging", this._drag);
+    },
+
+    /**@
+     * #.enableDrag
+     * @comp Draggable 
+     * @kind Method
+     * 
+     * @sign public this .enableDrag(void)
+     *
+     * Reenable dragging of entity. Use if `.disableDrag` has been called.
+     *
+     * @see .disableDrag
+     */
+    enableDrag: function () {
+        this.uniqueBind("Dragging", this._drag);
+        return this;
+    },
+
+    /**@
+     * #.disableDrag
+     * @comp Draggable
+     * @kind Method
+     * 
+     * @sign public this .disableDrag(void)
+     *
+     * Disables entity dragging. Reenable with `.enableDrag()`.
+     *
+     * @see .enableDrag
+     */
+    disableDrag: function () {
+        this.unbind("Dragging", this._drag);
+        return this;
+    },
+
+    /**@
+     * #.dragDirection
+     * @comp Draggable
+     * @kind Method
+     * 
+     * Method used for modifying the drag direction.
+     * If direction is set, the entity being dragged will only move along the specified direction.
+     * If direction is not set, the entity being dragged will move along any direction.
+     *
+     * @sign public this .dragDirection()
+     * Remove any previously specified direction.
+     *
+     * @sign public this .dragDirection(vector)
+     * @param vector - Of the form of {x: valx, y: valy}, the vector (valx, valy) denotes the move direction.
+     *
+     * @sign public this .dragDirection(degree)
+     * @param degree - A number, the degree (clockwise) of the move direction with respect to the x axis.
+     *
+     * Specify the dragging direction.
+     *
+     * @example
+     * ~~~
+     * this.dragDirection()
+     * this.dragDirection({x:1, y:0}) //Horizontal
+     * this.dragDirection({x:0, y:1}) //Vertical
+     * // Note: because of the orientation of x and y axis,
+     * // this is 45 degree clockwise with respect to the x axis.
+     * this.dragDirection({x:1, y:1}) //45 degree.
+     * this.dragDirection(60) //60 degree.
+     * ~~~
+     */
+    dragDirection: function (dir) {
+        if (typeof dir === 'undefined') {
+            this._dir = null;
+        } else if (+dir === dir) { //dir is a number
+            this._dir = {
+                x: Math.cos(dir / 180 * Math.PI),
+                y: Math.sin(dir / 180 * Math.PI)
+            };
+        } else {
+            if (dir.x === 0 && dir.y === 0) {
+                this._dir = { x: 0, y: 0 };
+            } else {
+                var r = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
+                this._dir = {
+                    x: dir.x / r,
+                    y: dir.y / r
+                };
+            }
+        }
+        return this;
+    },
+
+    _startDrag: function (e) {
+        this._origX = e.realX;
+        this._origY = e.realY;
+        this._oldX = this._x;
+        this._oldY = this._y;
+    },
+
+    //Note: the code is not tested with zoom, etc., that may distort the direction between the viewport and the coordinate on the canvas.
+    _drag: function(e) {
+        if (this._dir) {
+            if (this._dir.x !== 0 || this._dir.y !== 0) {
+                var len = (e.realX - this._origX) * this._dir.x + (e.realY - this._origY) * this._dir.y;
+                this.x = this._oldX + len * this._dir.x;
+                this.y = this._oldY + len * this._dir.y;
+            }
+        } else {
+            this.x = this._oldX + (e.realX - this._origX);
+            this.y = this._oldY + (e.realY - this._origY);
+        }
+    }
+});
+
+
+/**@
+ * #Controllable
+ * @category Controls
+ * @kind Component
+ *
+ * Used to bind methods to generalized input events.
+ *
+ * Currently supports the events "DirectionalInput", "TriggerInputDown", and "TriggerInputUp".
+ *
+ */
+Crafty.c("Controllable", {
+    init: function () {
+        this._inputBindings = {
+            "DirectionalInput": {},
+            "TriggerInputDown": {},
+            "TriggerInputUp": {}
+        };
+    },
+    
+    events: {
+        // We don't want to use dot notation here for the property names
+        /* jshint -W069 */
+        "DirectionalInput": function (e) {
+            if (this._inputBindings["DirectionalInput"][e.name]) {
+                this._inputBindings["DirectionalInput"][e.name].call(this, e);
+            }
+        },
+
+        "TriggerInputDown": function (e) {
+            if (this._inputBindings["TriggerInputDown"][e.name]) {
+                this._inputBindings["TriggerInputDown"][e.name].call(this, e);
+            }
+        },
+
+         "TriggerInputUp": function (e) {
+            if (this._inputBindings["TriggerInputUp"][e.name]) {
+                this._inputBindings["TriggerInputUp"][e.name].call(this, e);
+            }
+        }
+        /* jshint +W069 */
+    },
+
+    /**@
+     * #.linkInput
+     * @comp Controllable
+     * @kind Method
+     * 
+     * @sign public this linkInput(string event, string name, function fn)
+     * @param event - the name of the input event
+     * @param name - the name of the input
+     * @param fn - the function that will be called with the event object
+     * 
+     * Binds the function to the particular named event trigger.
+     * 
+     * Currently supports three types of input events.  Each event will have a `name` property.
+     * - `DirectionalInput`: The event will have `x` and `y` properties representing the directional input vector, often normalized to a unit vector.  Triggered when the input changes.
+     * - `TriggerInputDown`: Occurs when the input is triggered.
+     * - `TriggerInputDown`: Occurs when the trigger is released.  The event will have a `downFor` property, indicating how long it had been active.
+     * 
+     * @example
+     * ~~~~
+     * // Create a trigger bound to the `b` key
+     * Crafty.s("Controls").defineTriggerInput("BlushTrigger", {keys:['b']});
+     * // Create a blue square that turns pink when the trigger is pressed
+     * Crafty.e("2D, Canvas, Color, Controllable")
+     *   .attr({x:10, y:10, h:10, w:10}).color("blue")
+     *   .linkInput("TriggerInputDown", "BlushTrigger", function(){this.color('pink');});
+     * ~~~
+     * 
+     * @see .unlinkInput  
+     */
+    linkInput: function(event, name, fn) {
+        this._inputBindings[event][name] = fn;
+    },
+
+    /**@
+     * #.unlinkInput
+     * @comp Controllable
+     * @kind Method
+     * 
+     * @sign public this linkInput(string event, string name)
+     * @param event - the name of the input event
+     * @param name - the name of the input
+     * 
+     * Removes a binding setup by linkInput
+     * 
+     * @see .linkInput
+     */
+    unlinkInput: function(event, name) {
+        delete this._inputBindings[event][name];
+    },
+
+
+    disableControls: false,
+
+    /**@
+     * #.enableControl
+     * @comp Controllable
+     * @kind Method
+     * 
+     * @sign public this .enableControl()
+     *
+     * Enable the component to listen to input events.
+     *
+     * @example
+     * ~~~
+     * this.enableControl();
+     * ~~~
+     */
+    enableControl: function () {
+        this.disableControls = false;
+        return this;
+    },
+
+    /**@
+     * #.disableControl
+     * @comp Controllable
+     * @kind Method
+     * 
+     * @sign public this .disableControl()
+     *
+     * Disable the component from responding to input events.
+     *
+     * @example
+     * ~~~
+     * this.disableControl();
+     * ~~~
+     */
+    disableControl: function () {
+        this.disableControls = true;
+        return this;
+    }
+});
+
+
+/**@
+ * #Multiway
+ * @category Controls
+ * @kind Component
+ *
+ * Used to bind keys to directions and have the entity move accordingly.
+ *
+ * Multiway acts by listening to directional events, and then setting the velocity each frame based on the current direction and the current speed.
+ * 
+ * If a speed is not defined for a particular axis (x or y), then the velocity along that axis will not be set.
+ *   
+ * This behavior works in most cases, but can cause undesired behavior if you manipulate velocities by yourself while this component is in effect.
+ * If you need to resolve collisions, it's advised to correct the position directly rather than to manipulate the velocity.
+ * If you still need to reset the velocity once a collision happens, make sure to re-add the previous velocity once the collision is resolved.
+ *
+ * Additionally, this component provides the entity with `Motion` methods & events.
+ *
+ * @see Motion
+ */
+Crafty.c("Multiway", {
+    _speed: null,
+    
+    init: function () {
+        this.requires("Motion, Controllable");
+        this._dpadName = "MultiwayDpad" + this[0];
+        this._speed = { x: 150, y: 150 };
+        this._direction = {x:0, y:0};
+    },
+
+    remove: function() {
+        if (!this.disableControls) this.vx = this.vy = 0;
+    },
+
+    events: {
+        "EnterFrame": function() {
+            if (!this.disableControls) {
+                if (typeof this._speed.x !== 'undefined' && this._speed.x !== null){
+                    this.vx = this._speed.x * this._direction.x;
+                }
+                if (typeof this._speed.y !== 'undefined' && this._speed.y !== null) {
+                    this.vy = this._speed.y * this._direction.y;
+                }
+            }
+        }
+    },
+   
+   // Rather than update the velocity directly in response to changing input, track the input direction separately
+   // That makes it easier to enable/disable control
+    _updateDirection: function(e) {
+        this._direction.x = e.x;
+        this._direction.y = e.y;
+    },
+
+    /**@
+     * #.multiway
+     * @comp Multiway
+     * @kind Method
+     * 
+     * @sign public this .multiway([Number speed,] Object keyBindings[, Object options])
+     * @param speed - A speed in pixels per second
+     * @param keyBindings - What keys should make the entity go in which direction. Direction is specified in degrees
+     * @param options - An object with options for `normalize` and `multipleDirectionBehavior`.
+     *
+     * Constructor to initialize the speed and keyBindings.
+     * Component will listen to key events and move the entity appropriately.
+     * Can be called while a key is pressed to change direction & speed on the fly.
+     *
+     * The options parameter controls the behavior of the component, and has the following defaults:
+     * 
+     *  - `"normalize": false`.  When set to true, the directional input always has a magnitude of 1
+     *  - `"multipleDirectionBehavior": "all"` How to resolve multiple active directions.  
+     *     Set to "first" or "last" to allow only one active direction at a time.
+     *
+     *  @example
+     * ~~~
+     * this.multiway(150, {UP_ARROW: -90, DOWN_ARROW: 90, RIGHT_ARROW: 0, LEFT_ARROW: 180});
+     * this.multiway({x:150,y:75}, {UP_ARROW: -90, DOWN_ARROW: 90, RIGHT_ARROW: 0, LEFT_ARROW: 180});
+     * this.multiway({W: -90, S: 90, D: 0, A: 180});
+     * ~~~
+     *
+     * @see Crafty.keys
+     */         
+    multiway: function (speed, keys, options) {
+        var inputSystem = Crafty.s("Controls");
+
+        if (keys) {
+            this.speed(speed);
+        } else {
+            keys = speed;
+        }
+        inputSystem.defineDpad(this._dpadName, keys, options);
+        this.linkInput("DirectionalInput", this._dpadName, this._updateDirection);
+
+        return this;
+    },
+
+    /**@
+     * #.speed
+     * @comp Multiway
+     * @kind Method
+     * 
+     * @sign public this .speed(Object speed)
+     * @param speed - New speed the entity has, for x and y axis.
+     *
+     * Change the speed that the entity moves with, in units of pixels per second.
+     * Can be called while a key is pressed to change speed on the fly.
+     * 
+     * If the passed object has only an x or y property, only the velocity along that axis will be controlled.
+     *
+     * @example
+     * ~~~
+     * this.speed({ x: 150, y: 50 });
+     * ~~~
+     */
+    speed: function (speed) {
+        if (typeof speed === 'object') {
+            this._speed.x = speed.x;
+            this._speed.y = speed.y;
+        } else {
+            this._speed.x = speed;
+            this._speed.y = speed;
+        }
+        return this;
+    },
+
+    
+});
+
+
+/**@
+ * #Jumper
+ * @category Controls
+ * @kind Component
+ * @trigger CheckJumping - When entity is about to jump. This event is triggered with the object the entity is about to jump from (if it exists). Third parties can respond to this event and enable the entity to jump.
+ *
+ * Make the entity jump in response to key events.
+ * Simulates jumping and falling when used with the `Gravity` component.
+ *
+ * Additionally, this component provides the entity with `Supportable`, `Motion` and `Keyboard` methods & events.
+ *
+ * @see Supportable, Motion, Keyboard, Gravity
+ */
+Crafty.c("Jumper", {
+    _jumpSpeed: 300,
+
+    /**@
+     * #.canJump
+     * @comp Jumper
+     * @kind Method
+     *
+     * The canJump function determines if the entity is allowed to jump or not (e.g. perhaps the entity should be able to double jump).
+     * The Jumper component will trigger a "CheckJumping" event.
+     * Interested parties can listen to this event and enable the entity to jump by setting `canJump` to true.
+     *
+     * @example
+     * ~~~
+     * var player = Crafty.e("2D, Jumper");
+     * player.hasDoubleJumpPowerUp = true; // allow player to double jump by granting him a powerup
+     * player.bind("CheckJumping", function(ground) {
+     *     if (!ground && player.hasDoubleJumpPowerUp) { // allow player to double jump by using up his double jump powerup
+     *         player.canJump = true;
+     *         player.hasDoubleJumpPowerUp = false;
+     *     }
+     * });
+     * player.bind("LandedOnGround", function(ground) {
+     *     player.hasDoubleJumpPowerUp = true; // give player new double jump powerup upon landing
+     * });
+     * ~~~
+     */
+    canJump: true,
+
+    init: function () {
+        this.requires("Supportable, Motion, Controllable");
+    },
+
+    
+
+    remove: function() {
+        this.unlinkInput("TriggerInputDown", this._jumpTriggerName);
+    },
+
+    _keydown_jumper: function (e) {
+        if (this.disableControls) return;
+        this.jump();        
+    },
+
+    /**@
+     * #.jump
+     * @comp Jumper
+     * @kind Method
+     * 
+     * @sign public this .jump()
+     *
+     * Directly trigger the entity to jump.
+     *
+     */
+    jump: function() {
+        var ground = this.ground;
+        this.canJump = !!ground;
+        this.trigger("CheckJumping", ground);
+        if (this.canJump) {
+            this.vy = -this._jumpSpeed;
+        }
+        return this;
+    },
+
+    /**@
+     * #.jumper
+     * @comp Jumper
+     * @kind Method
+     * 
+     * @sign public this .jumper([Number jumpSpeed,] Array jumpKeys)
+     * @param jumpSpeed - Vertical jump speed in pixels per second
+     * @param jumpKeys - Keys to listen for and make entity jump in response
+     * 
+     * @sign public this .jumper([Number jumpSpeed,] Object jumpInputs)
+     * @param jumpSpeed - Vertical jump speed in pixels per second
+     * @param jumpInputs - An object with two properties, `keys` and `mouseButtons`.
+     *
+     * Constructor to initialize the power of jump and keys to listen to.
+     * Component will listen for key events and make the entity jump appropriately.
+     * 
+     * If second argument is an object, the properties `keys` and `mouseButtons` will be used as triggers.
+     *
+     * @example
+     * ~~~
+     * this.jumper(300, ['UP_ARROW', 'W']);
+     * this.jumper(['UP_ARROW', 'W']);
+     * ~~~
+     *
+     * @see Crafty.keys
+     */
+    jumper: function (jumpSpeed, jumpKeys) {
+        if (jumpKeys) {
+            this._jumpSpeed = jumpSpeed;
+        } else {
+            jumpKeys = jumpSpeed;
+        }
+        this._jumpTriggerName = "JumpTrigger" + this[0];
+        if (Array.isArray(jumpKeys)) {
+            var keys = [];
+            for (var i = 0; i < jumpKeys.length; ++i) {
+                var key = jumpKeys[i];
+                var keyCode = Crafty.keys[key] || key;
+                keys.push(keyCode);
+            }
+            Crafty.s("Controls")
+                .defineTriggerGroup(this._jumpTriggerName, {keys:keys});
+        } else {
+            Crafty.s("Controls")
+                .defineTriggerGroup(this._jumpTriggerName, jumpKeys);
+        }
+        
+        this.linkInput("TriggerInputDown", this._jumpTriggerName, this._keydown_jumper);
+
+        return this;
+    },
+
+    /**@
+     * #.jumpSpeed
+     * @comp Jumper
+     * @kind Method
+     * 
+     * @sign public this .jumpSpeed(Number jumpSpeed)
+     * @param jumpSpeed - new vertical jump speed
+     *
+     * Change the vertical jump speed.
+     *
+     * @example
+     * ~~~
+     * this.jumpSpeed(300);
+     * ~~~
+     */
+    jumpSpeed: function (jumpSpeed) {
+        this._jumpSpeed = jumpSpeed;
+        return this;
+    }
+});
+
+/**@
+ * #Fourway
+ * @category Controls
+ * @kind Component
+ *
+ * Move an entity in four directions by using the
+ * `Up Arrow`, `Left Arrow`, `Down Arrow`, `Right Arrow` keys or `W`, `A`, `S`, `D`.
+ *
+ * This component is a thin wrapper around the `Multiway` component and sets the appropriate key bindings.
+ * It is a well suited for games with a top-down (birds-eye) perspective.
+ *
+ * @see Multiway
+ */
+Crafty.c("Fourway", {
+
+    init: function () {
+        this.requires("Multiway");
+    },
+
+    /**@
+     * #.fourway
+     * @comp Fourway
+     * @kind Method
+     * 
+     * @sign public this .fourway([Number speed])
+     * @param speed - The speed of motion in pixels per second.
+     *
+     * Constructor to initialize the speed.
+     * Component will listen for key events and move the entity
+     * in the respective direction by the speed passed in the argument.
+     */
+    fourway: function (speed) {
+        this.multiway(speed || this._speed, {
+            UP_ARROW: -90,
+            DOWN_ARROW: 90,
+            RIGHT_ARROW: 0,
+            LEFT_ARROW: 180,
+            W: -90,
+            S: 90,
+            D: 0,
+            A: 180,
+            Z: -90,
+            Q: 180
+        });
+
+        return this;
+    }
+});
+
+/**@
+ * #Twoway
+ * @category Controls
+ * @kind Component
+ *
+ * Move an entity left or right using the `Left Arrow`, `Right Arrow` keys or `D` and `A`
+ * and make it jump using `Up Arrow` or `W`.
+ * Simulates jumping and falling when used with the `Gravity` component.
+ *
+ * This component is a thin wrapper around the `Multiway` and `Jumper` components and sets the appropriate key bindings.
+ * It is a well suited for side-scrolling platformer type games.
+ *
+ * @see Multiway, Jumper
+ */
+Crafty.c("Twoway", {
+
+    init: function () {
+        this.requires("Multiway, Jumper");
+    },
+
+    /**@
+     * #.twoway
+     * @comp Twoway
+     * @kind Method
+     * 
+     * @sign public this .twoway([Number speed[, Number jumpSpeed]])
+     * @param speed - A speed in pixels per second
+     * @param jumpSpeed - Vertical jump speed in pixels per second
+     *
+     * Constructor to initialize the speed and power of jump.
+     * Component will listen for key events and move the entity
+     * in the respective direction by the speed passed in the argument.
+     * Pressing the jump key will cause the entity to jump with the supplied power.
+     */
+    twoway: function (speed, jumpSpeed) {
+        // Set multiway with horizontal speed only
+        var hSpeed = speed || this._speed;
+        this.multiway({x: hSpeed}, {
+            RIGHT_ARROW: 0,
+            LEFT_ARROW: 180,
+            D: 0,
+            A: 180,
+            Q: 180
+        });
+
+        this.jumper(jumpSpeed || speed * 2 || this._jumpSpeed, [
+            Crafty.keys.UP_ARROW,
+            Crafty.keys.W,
+            Crafty.keys.Z
+        ]);
+
+        return this;
+    }
+});
+
+},{"../core/core.js":9}],5:[function(require,module,exports){
+var Crafty = require('../core/core.js');
+
+
+Crafty.extend({
+    /**@
+     * #Crafty.device
+     * @category Misc
+     * @kind Property
+     *
+     * Methods relating to devices such as tablets or phones
+     */
+    device: {
+        _deviceOrientationCallback: false,
+        _deviceMotionCallback: false,
+
+        /**
+         * The HTML5 DeviceOrientation event returns three pieces of data:
+         *  * alpha the direction the device is facing according to the compass
+         *  * beta the angle in degrees the device is tilted front-to-back
+         *  * gamma the angle in degrees the device is tilted left-to-right.
+         *  * The angles values increase as you tilt the device to the right or towards you.
+         *
+         * Since Firefox uses the MozOrientationEvent which returns similar data but
+         * using different parameters and a different measurement system, we want to
+         * normalize that before we pass it to our _deviceOrientationCallback function.
+         *
+         * @param eventData HTML5 DeviceOrientation event
+         */
+        _normalizeDeviceOrientation: function (eventData) {
+            var data;
+            if (window.DeviceOrientationEvent) {
+                data = {
+                    // gamma is the left-to-right tilt in degrees, where right is positive
+                    'tiltLR': eventData.gamma,
+                    // beta is the front-to-back tilt in degrees, where front is positive
+                    'tiltFB': eventData.beta,
+                    // alpha is the compass direction the device is facing in degrees
+                    'dir': eventData.alpha,
+                    // deviceorientation does not provide this data
+                    'motUD': null
+                };
+            } else if (window.OrientationEvent) {
+                data = {
+                    // x is the left-to-right tilt from -1 to +1, so we need to convert to degrees
+                    'tiltLR': eventData.x * 90,
+                    // y is the front-to-back tilt from -1 to +1, so we need to convert to degrees
+                    // We also need to invert the value so tilting the device towards us (forward)
+                    // results in a positive value.
+                    'tiltFB': eventData.y * -90,
+                    // MozOrientation does not provide this data
+                    'dir': null,
+                    // z is the vertical acceleration of the device
+                    'motUD': eventData.z
+                };
+            }
+
+            Crafty.device._deviceOrientationCallback(data);
+        },
+
+        /**
+         * @param eventData HTML5 DeviceMotion event
+         */
+        _normalizeDeviceMotion: function (eventData) {
+            var acceleration = eventData.accelerationIncludingGravity,
+                facingUp = (acceleration.z > 0) ? +1 : -1;
+
+            var data = {
+                // Grab the acceleration including gravity from the results
+                'acceleration': acceleration,
+                'rawAcceleration': "[" + Math.round(acceleration.x) + ", " + Math.round(acceleration.y) + ", " + Math.round(acceleration.z) + "]",
+                // Z is the acceleration in the Z axis, and if the device is facing up or down
+                'facingUp': facingUp,
+                // Convert the value from acceleration to degrees acceleration.x|y is the
+                // acceleration according to gravity, we'll assume we're on Earth and divide
+                // by 9.81 (earth gravity) to get a percentage value, and then multiply that
+                // by 90 to convert to degrees.
+                'tiltLR': Math.round(((acceleration.x) / 9.81) * -90),
+                'tiltFB': Math.round(((acceleration.y + 9.81) / 9.81) * 90 * facingUp)
+            };
+
+            Crafty.device._deviceMotionCallback(data);
+        },
+
+        /**@
+         * #Crafty.device.deviceOrientation
+         * @comp Crafty.device
+         * @kind Method
+         * 
+         * @sign public Crafty.device.deviceOrientation(Function callback)
+         * @param callback - Callback method executed once as soon as device orientation is change
+         *
+         * Do something with normalized device orientation data:
+         * ~~~
+         * {
+         *   tiltLR    :   'gamma -- the angle in degrees the device is tilted left-to-right.',
+         *   tiltFB    :   'beta -- the angle in degrees the device is tilted front-to-back',
+         *   dir       :   'alpha -- the direction the device is facing according to the compass',
+         *   motUD     :   'The angle's values increase as you tilt the device to the right or towards you.'
+         * }
+         * ~~~
+         *
+         * @example
+         * ~~~
+         * // Get DeviceOrientation event normalized data.
+         * Crafty.device.deviceOrientation(function(data){
+         *     Crafty.log('data.tiltLR : '+Math.round(data.tiltLR)+', data.tiltFB : '+Math.round(data.tiltFB)+', data.dir : '+Math.round(data.dir)+', data.motUD : '+data.motUD+'');
+         * });
+         * ~~~
+         *
+         * See browser support at http://caniuse.com/#search=device orientation.
+         */
+        deviceOrientation: function (func) {
+            this._deviceOrientationCallback = func;
+            if (Crafty.support.deviceorientation) {
+                if (window.DeviceOrientationEvent) {
+                    // Listen for the deviceorientation event and handle DeviceOrientationEvent object
+                    Crafty.addEvent(this, window, 'deviceorientation', this._normalizeDeviceOrientation);
+                } else if (window.OrientationEvent) {
+                    // Listen for the MozOrientation event and handle OrientationData object
+                    Crafty.addEvent(this, window, 'MozOrientation', this._normalizeDeviceOrientation);
+                }
+            }
+        },
+
+        /**@
+         * #Crafty.device.deviceMotion
+         * @comp Crafty.device
+         * @kind Method
+         * 
+         * @sign public Crafty.device.deviceMotion(Function callback)
+         * @param callback - Callback method executed once as soon as device motion is change
+         *
+         * Do something with normalized device motion data:
+         * ~~~
+         * {
+         *     acceleration : 'Grab the acceleration including gravity from the results',
+         *     rawAcceleration : 'Display the raw acceleration data',
+         *     facingUp : 'Z is the acceleration in the Z axis, and if the device is facing up or down',
+         *     tiltLR : 'Convert the value from acceleration to degrees. acceleration.x is the acceleration according to gravity, we'll assume we're on Earth and divide by 9.81 (earth gravity) to get a percentage value, and then multiply that by 90 to convert to degrees.',
+         *     tiltFB : 'Convert the value from acceleration to degrees.'
+         * }
+         * ~~~
+         *
+         * @example
+         * ~~~
+         * // Get DeviceMotion event normalized data.
+         * Crafty.device.deviceMotion(function(data){
+         *     Crafty.log('data.moAccel : '+data.rawAcceleration+', data.moCalcTiltLR : '+Math.round(data.tiltLR)+', data.moCalcTiltFB : '+Math.round(data.tiltFB)+'');
+         * });
+         * ~~~
+         *
+         * See browser support at http://caniuse.com/#search=motion.
+         */
+        deviceMotion: function (func) {
+            this._deviceMotionCallback = func;
+            if (Crafty.support.devicemotion) {
+                if (window.DeviceMotionEvent) {
+                    // Listen for the devicemotion event and handle DeviceMotionEvent object
+                    Crafty.addEvent(this, window, 'devicemotion', this._normalizeDeviceMotion);
+                }
+            }
+        }
+    }
+});
+
+},{"../core/core.js":9}],6:[function(require,module,exports){
+var Crafty = require('../core/core.js'),
+    document = window.document;
+
+Crafty.extend({
+    over: null, //object mouseover, waiting for out
+    mouseObjs: 0,
+    mousePos: {},   
+    touchObjs: 0,
+
+    /**@
+     * #Crafty.lastEvent
+     * @category Input
+     * @kind Property
+     * Check which mouse event occured most recently (useful for determining mouse position in every frame).
+     *
+     * The native [`MouseEvent`](https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent) is augmented with additional properties.
+     * @example
+     * ~~~
+     * // (x,y) coordinates of newest mouse event in web-browser (screen) space
+     * Crafty.lastEvent.clientX
+     * Crafty.lastEvent.clientY
+     *
+     * //(x,y) coordinates of newest mouse event in world (default viewport) space
+     * Crafty.lastEvent.realX
+     * Crafty.lastEvent.realY
+     *
+     * // Normalized mouse button according to Crafty.mouseButtons:
+     * // Crafty.mouseButtons.LEFT, Crafty.mouseButtons.RIGHT or Crafty.mouseButtons.MIDDLE
+     * Crafty.lastEvent.mouseButton
+     * ~~~
+     * @see Mouse, Crafty.mouseButtons, Crafty.mouseDispatch
+     */
+
+    lastEvent: null,
+    /**@
+     * #Crafty.keydown
+     * @category Input
+     * @kind Property
+     * Check which keys (referred by `Crafty.keys` key codes) are currently down.
+     *
+     * @example
+     * ~~~
+     * // is "Shift" currently pressed?
+     * var shiftDown = !!Crafty.keydown[Crafty.keys.SHIFT];
+     * ~~~
+     * @see Keyboard, Crafty.keys, Crafty.keyboardDispatch
+     */
+    keydown: {},
+
+    /**@
+     * #Crafty.selected
+     * @category Input
+     * @kind Property
+     * @trigger CraftyFocus - is triggered when Crafty's stage gets selected
+     * @trigger CraftyBlur - is triggered when Crafty's stage is no longer selected
+     *
+     * Check whether Crafty's stage (`Crafty.stage.elem`) is currently selected.
+     *
+     * After a click occurs inside Crafty's stage, this property is set to `true`.
+     * After a click occurs outside Crafty's stage, this property is set to `false`.
+     *
+     * @see Crafty.stage#Crafty.stage.elem
+     */
+    selected: false,
+
+    detectBlur: function (e) {
+        var selected = ((e.clientX > Crafty.stage.x && e.clientX < Crafty.stage.x + Crafty.viewport.width) &&
+            (e.clientY > Crafty.stage.y && e.clientY < Crafty.stage.y + Crafty.viewport.height));
+
+        if (!Crafty.selected && selected) {
+            Crafty.trigger("CraftyFocus");
+        }
+
+        if (Crafty.selected && !selected) {
+            Crafty.trigger("CraftyBlur");
+        }
+
+        Crafty.selected = selected;
+    },
+
+    /**@
+     * #Crafty.multitouch
+     * @category Input
+     * @kind Method
+     * @sign public this .multitouch(Boolean bool)
+     * @param bool - Turns multitouch on and off.  The initial state is off (false).
+     *
+     * @sign public Boolean .multitouch()
+     * @returns Whether multitouch is currently enabled;
+     *
+     * Enables/disables support for multitouch feature.
+     * 
+     * If this is set to true, it is expected that your entities have the Touch component instead of Mouse component.
+     * If false (default), then only entities with the Mouse component will respond to touch.
+     *
+     * If no boolean is passed to the function call, it will just return whether multitouch is on or not.
+     * 
+     * @note The Touch component (and thus the multitouch feature) is currently incompatible with the Draggable component.
+     * 
+     * @example
+     * ~~~
+     * Crafty.multitouch(true);
+     * 
+     * var myEntity1 = Crafty.e('2D, Canvas, Color, Touch')
+     *    .attr({x: 100, y: 100, w:200, h:200, z:1 })
+     *    .color('black')
+     *    .bind('TouchStart',function(e){ alert('big black box was touched', e); }),
+     *  myEntity2 = Crafty.e('2D, Canvas, Color, Touch')
+     *    .attr({x: 40, y: 150, w:90, h:300, z:2 })
+     *    .color('green')
+     *    .bind('TouchStart',function(e){ alert('big GREEN box was touched', e); });
+     * 
+     * Crafty.log("multitouch is "+Crafty.multitouch());
+     * ~~~
+     * @see Crafty.touchDispatch
+     * @see Touch
+     */
+    multitouch: function (bool) {
+        if (typeof bool !== "boolean") return this._touchHandler.multitouch;
+        this._touchHandler.multitouch = bool;
+    },
+
+    resetKeyDown: function () {
+        // Tell all the keys they're no longer held down
+        for (var k in Crafty.keys) {
+            if (Crafty.keydown[Crafty.keys[k]]) {
+                this.trigger("KeyUp", {
+                    key: Crafty.keys[k]
+                });
+            }
+        }
+
+        Crafty.keydown = {};
+    },
+
+    /**@
+     * #Crafty.mouseDispatch
+     * @category Input
+     * @private
+     * @kind Method
+     *
+     * Internal method which dispatches mouse events received by Crafty.
+     *
+     * This method processes a native [`MouseEvent`](https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent) received by `Crafty.stage.elem`,
+     * augments it with additional properties and
+     * dispatches it to the closest (visible & `Mouse`-enhanced) entity to the source of the event (if available).
+     *
+     * This method also updates `Crafty.lastEvent`.
+     *
+     * @see Crafty.mouseButtons, Crafty.lastEvent, Mouse
+     */
+    mouseButtonsDown: {    },
+    mouseDispatch: function (e) {
+        if (!Crafty.mouseObjs) return;
+        Crafty.lastEvent = e;
+
+        var tar = e.target ? e.target : e.srcElement,
+            closest,
+            pos = Crafty.domHelper.translate(e.clientX, e.clientY),
+            type = e.type;
+
+        //Normalize button according to http://unixpapa.com/js/mouse.html
+        if (typeof e.which === 'undefined') {
+            e.mouseButton = (e.button < 2) ? Crafty.mouseButtons.LEFT : ((e.button === 4) ? Crafty.mouseButtons.MIDDLE : Crafty.mouseButtons.RIGHT);
+        } else {
+            e.mouseButton = (e.which < 2) ? Crafty.mouseButtons.LEFT : ((e.which === 2) ? Crafty.mouseButtons.MIDDLE : Crafty.mouseButtons.RIGHT);
+        }
+
+        // Set the mouse position based on standard viewport coordinates
+        Crafty.mousePos.x = pos.x;
+        Crafty.mousePos.y = pos.y;
+
+        // Track button state
+        if (type === "mousedown") {
+            this.mouseButtonsDown[e.mouseButton] = true;
+        }
+        if (type === "mouseup") {
+            delete this.mouseButtonsDown[e.mouseButton];
+        }
+
+        closest = Crafty.findPointerEventTargetByComponent("Mouse", e, tar);
+        //found closest object to mouse
+        if (closest) {
+            //click must mousedown and out on tile
+            if (type === "mousedown") {
+                closest.trigger("MouseDown", e);
+            } else if (type === "mouseup") {
+                closest.trigger("MouseUp", e);
+            } else if (type === "dblclick") {
+                closest.trigger("DoubleClick", e);
+            } else if (type === "click") {
+                closest.trigger("Click", e);
+            } else if (type === "mousemove") {
+                closest.trigger("MouseMove", e);
+                if (this.over !== closest) { //if new mousemove, it is over
+                    if (this.over) { 
+                        this.over.trigger("MouseOut", e); //if over wasn't null, send mouseout
+                        this.over = null;
+                    }
+                    this.over = closest;
+                    closest.trigger("MouseOver", e);
+                }
+            } else closest.trigger(type, e); //trigger whatever it is
+        } else {
+            if (type === "mousemove" && this.over) {
+                this.over.trigger("MouseOut", e);
+                this.over = null;
+            }
+            if (type === "mousedown") {
+                Crafty.viewport.mouselook('start', e);
+            } else if (type === "mousemove") {
+                Crafty.viewport.mouselook('drag', e);
+            } else if (type === "mouseup") {
+                Crafty.viewport.mouselook('stop');
+            }
+
+            // If nothing in particular was clicked, the controls system should get fed the event
+            if (type === "mousedown") {
+                Crafty.s("Controls").trigger("MouseDown", e);
+            } else if (type === "mouseup") {
+                Crafty.s("Controls").trigger("MouseUp", e);
+            } else if (type === "dblclick") {
+                Crafty.s("Controls").trigger("DoubleClick", e);
+            } else if (type === "click") {
+                Crafty.s("Controls").trigger("Click", e);
+            }
+        }
+
+        if (type === "mousemove") {
+            this.lastEvent = e;
+        }
+
+    },
+
+
+    /**@
+     * #Crafty.touchDispatch
+     * @category Input
+     * @kind Method
+     * @private
+     *
+     * Internal method which dispatches touch events received by Crafty (crafty.stage.elem).
+     * The touch events get dispatched to the closest entity to the source of the event (if available).
+     * 
+     * By default, touch events are treated as mouse events. To change this behaviour (and enable multitouch)
+     * you must use Crafty.multitouch.
+     * 
+     * If using multitouch feature, this method sets the array Crafty.touchHandler.fingers, which holds data 
+     * of the most recent touches that occured (useful for determining positions of fingers in every frame) 
+     * as well as last entity touched by each finger. Data is lost as soon as the finger is raised.
+     * 
+     * You can read about the MouseEvent, which is the parameter passed to the Mouse entity's callback.
+     * https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent
+     *
+     * You can also read about the TouchEvent.
+     * https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent
+     * 
+     * And about the touch point interface, which is the parameter passed to the Touch entity's callback.
+     * http://www.w3.org/TR/touch-events/#dfn-active-touch-point
+     * 
+     * @see Crafty.multitouch
+     * @see Touch
+     */
+    touchDispatch: function (e) {
+        if (!Crafty.touchObjs && !Crafty.mouseObjs) return;
+
+        if (this._touchHandler.multitouch)
+            switch (e.type) {
+                case "touchstart":
+                    this._touchHandler.handleStart(e);
+                    break;
+                case "touchmove":
+                    this._touchHandler.handleMove(e);
+                    break;
+                case "touchleave": // touchleave is treated as touchend
+                case "touchcancel": // touchcancel is treated as touchend, but triggers a TouchCancel event
+                case "touchend":
+                    this._touchHandler.handleEnd(e);
+                    break;
+            }
+        else
+            this._touchHandler.mimicMouse(e);
+
+        //Don't prevent default actions if target node is input or textarea.
+        if (e.target && e.target.nodeName !== 'INPUT' && e.target.nodeName !== 'TEXTAREA')
+            if (e.preventDefault) {
+                e.preventDefault();
+            } else {
+                e.returnValue = false;
+            }
+    },
+
+    _touchHandler: {
+        fingers: [], // keeps track of touching fingers
+        multitouch: false,
+
+        handleStart: function (e) {
+            var touches = e.changedTouches;
+            for (var i = 0, l = touches.length; i < l; i++) {
+                var idx = false,
+                    tar = e.target ? e.target : e.srcElement,
+                    closest;
+                closest = this.findClosestTouchEntity(touches[i], tar);
+
+                if (closest) {
+                    closest.trigger("TouchStart", touches[i]);
+                    // In case the entity was already being pressed, get the finger index
+                    idx = this.fingerDownIndexByEntity(closest);
+                }
+                var touch = this.setTouch(touches[i], closest);
+                if (idx !== false && idx >= 0) {
+                    // Recycling finger...
+                    this.fingers[idx] = touch;
+                } else {
+                    this.fingers.push(touch);
+                }
+            }
+        },
+
+        handleMove: function (e) {
+            var touches = e.changedTouches;
+            for (var i = 0, l = touches.length; i < l; i++) {
+                var idx = this.fingerDownIndexById(touches[i].identifier),
+                    tar = e.target ? e.target : e.srcElement;
+                var closest = this.findClosestTouchEntity(touches[i], tar);
+
+                if (idx >= 0) {
+                    var finger = this.fingers[idx];
+                    if(typeof finger.entity !== "undefined")
+                        if (finger.entity === closest) {
+                            finger.entity.trigger("TouchMove", touches[i]);
+                        } else {
+                            if (typeof closest === "object") closest.trigger("TouchStart", touches[i]);
+                            finger.entity.trigger("TouchEnd");
+                        }
+                    finger.entity = closest;
+                    finger.realX = touches[i].realX;
+                    finger.realY = touches[i].realY;
+                }
+            }
+        },
+
+        handleEnd: function (e) {
+            var touches = e.changedTouches, 
+                eventName = e.type === "touchcancel" ? "TouchCancel" : "TouchEnd";
+            for (var i = 0, l = touches.length; i < l; i++) {
+                var idx = this.fingerDownIndexById(touches[i].identifier);
+
+                if (idx >= 0) {
+                    if (this.fingers[idx].entity)
+                        this.fingers[idx].entity.trigger(eventName);
+                    this.fingers.splice(idx, 1);
+                }
+            }
+        },
+
+        setTouch: function (touch, entity) {
+            return { identifier: touch.identifier, realX: touch.realX, realY: touch.realY, entity: entity };
+        },
+
+        findClosestTouchEntity: function (touchEvent, tar) {
+            return Crafty.findPointerEventTargetByComponent("Touch", touchEvent, tar);
+        },
+
+        fingerDownIndexById: function (idToFind) {
+            for (var i = 0, l = this.fingers.length; i < l; i++) {
+                var id = this.fingers[i].identifier;
+                if (id === idToFind) {
+                    return i;
+                }
+            }
+            return -1;
+        },
+
+        fingerDownIndexByEntity: function (entityToFind) {
+            for (var i = 0, l = this.fingers.length; i < l; i++) {
+                var ent = this.fingers[i].entity;
+
+                if (ent === entityToFind) {
+                    return i;
+                }
+            }
+            return -1;
+        },
+
+        mimicMouse: function (e) {
+            var type, first,
+                lastEvent = Crafty.lastEvent;
+            if (e.type === "touchstart") type = "mousedown";
+            else if (e.type === "touchmove") type = "mousemove";
+            else if (e.type === "touchend") type = "mouseup";
+            else if (e.type === "touchcancel") type = "mouseup";
+            else if (e.type === "touchleave") type = "mouseup";
+            if (e.touches && e.touches.length) {
+                first = e.touches[0];
+            } else if (e.changedTouches && e.changedTouches.length) {
+                first = e.changedTouches[0];
+            }
+            var simulatedEvent = document.createEvent("MouseEvent");
+            simulatedEvent.initMouseEvent(type, true, true, window, 1,
+                first.screenX,
+                first.screenY,
+                first.clientX,
+                first.clientY,
+                false, false, false, false, 0, e.relatedTarget
+            );
+            first.target.dispatchEvent(simulatedEvent);
+            // trigger click when it should be triggered
+            if (lastEvent !== null && lastEvent.type === 'mousedown' && type === 'mouseup') {
+                type = 'click';
+                simulatedEvent = document.createEvent("MouseEvent");
+                simulatedEvent.initMouseEvent(type, true, true, window, 1,
+                    first.screenX,
+                    first.screenY,
+                    first.clientX,
+                    first.clientY,
+                    false, false, false, false, 0, e.relatedTarget
+                );
+                first.target.dispatchEvent(simulatedEvent);
+            }
+        },
+    },
+
+    /**@
+     * #Crafty.findPointerEventTargetByComponent
+     * @category Input
+     * @kind Method
+     * @private
+     * 
+     * @sign public this .findPointerEventTargetByComponent(String comp, Event e[, Object target])
+     * Finds closest entity with certain component at a given event.
+     * @param comp - Component name
+     * @param e - The pointer event, which will be modifed to add `realX` and `realY` properties 
+     * @param target - Target element wherein to look for entities 
+     * 
+     * This method is used internally by the .mouseDispatch and .touchDispatch methods, but can be used otherwise for 
+     * Canvas entities.
+     * 
+     * Finds the top most entity (with the highest z) with a given component at a given point (x, y) associated with the event.
+     * For having a detection area specified for the enity, add the AreaMap component to the entity expected to be found.
+     * 
+     * The 'target' argument is only meant to be used by .mouseDispatch and touchDispatch; defaults to Crafty.stage.elem, 
+     * thus using this function directly is only worth anything for canvas entities.
+     * 
+     * Returns the found entity, or undefined if no entity was found.  
+     * Updates the event object to have two additional properties, `realX` and `realY`, which correspond to the point in the Crafty layer that the event targeted.
+     * 
+     */
+    findPointerEventTargetByComponent: function (comp, e, target) {
+        var tar = target ? target : Crafty.stage.elem,
+            closest, current, q, l, i, pos, layerPos, maxz = -Infinity;
+        var x = e.clientX;
+        var y = e.clientY;
+
+        //if it's a DOM element with component we are done
+        if (tar.nodeName !== "CANVAS") {
+            while (typeof (tar.id) !== 'string' && tar.id.indexOf('ent') === -1) {
+                tar = tar.parentNode;
+            }
+            var ent = Crafty(parseInt(tar.id.replace('ent', ''), 10));
+            pos = Crafty.domHelper.translate(x, y, ent._drawLayer);
+            if (ent.__c[comp] && ent.isAt(pos.x, pos.y)) {
+                closest = ent;
+                layerPos = pos;
+            }
+        }
+
+        //else we search for an entity with component
+        if (!closest) {
+
+            // Loop through each layer
+            for (var layerIndex in Crafty._drawLayers) {
+                var layer = Crafty._drawLayers[layerIndex];
+
+                // Skip a layer if it has no entities listening for pointer events
+                if (layer._pointerEntities <= 0) continue;
+
+                // Get the position in this layer
+                pos = Crafty.domHelper.translate(x, y, layer);
+                q = Crafty.map.search({
+                    _x: pos.x,
+                    _y: pos.y,
+                    _w: 1,
+                    _h: 1
+                }, false);
+
+                for (i = 0, l = q.length; i < l; ++i) {
+                    current = q[i];
+                    if (current._visible && current._drawLayer === layer && current._globalZ > maxz &&
+                        current.__c[comp] && current.isAt(pos.x, pos.y)) {
+                        maxz = current._globalZ;
+                        closest = current;
+                        layerPos = pos;
+                    }
+                }
+            }
+        }
+        
+        // If the pointer event isn't related to a specific layer, 
+        // find the Crafty position in the default coordinate set
+        if (!layerPos) {
+            layerPos = Crafty.domHelper.translate(x, y);
+        }
+
+        // Update the event coordinates and return the event target
+        e.realX = layerPos.x;
+        e.realY = layerPos.y;
+            
+        return closest;
+    },
+
+    /**@
+     * #Crafty.mouseWheelDispatch
+     * @category Input
+     * @kind Method
+     * @private
+     *
+     * Internal method which dispatches mouse wheel events received by Crafty.
+     * @trigger MouseWheelScroll - is triggered when mouse is scrolled on stage - { direction: +1 | -1} - Scroll direction (up | down)
+     *
+     * This method processes a native [`mousewheel` event](https://developer.mozilla.org/en-US/docs/Web/Events/mousewheel) (all browsers except Firefox)
+     * or a native [`DOMMouseScroll` event](https://developer.mozilla.org/en-US/docs/Web/Events/DOMMouseScroll) (Firefox only) received by `Crafty.stage.elem`,
+     * augments it with the additional `.direction` property (see below) and dispatches it to the global Crafty object and thus to every entity.
+     *
+     * Note that the wheel delta properties of the event vary in magnitude across browsers, thus it is recommended to check for `.direction` instead.
+     * The `.direction` equals `+1` if wheel was scrolled up, `-1` if wheel was scrolled down
+     * (see [details](http://stackoverflow.com/questions/5527601/normalizing-mousewheel-speed-across-browsers)).
+     *
+     * @example
+     * Zoom the viewport (camera) in response to mouse scroll events.
+     * ~~~
+     * Crafty.bind("MouseWheelScroll", function(evt) {
+     *     Crafty.viewport.scale(Crafty.viewport._scale * (1 + evt.direction * 0.1));
+     * });
+     * ~~~
+     *
+     * @example
+     * Interactive, map-like zooming of the viewport (camera) in response to mouse scroll events.
+     * ~~~
+     * // sign public void zoomTowards(Number amt, Number posX, Number posY, Number time[, String|function easingFn])
+     * // param Number amt - amount to zoom in on the target by (eg. `2`, `4`, `0.5`)
+     * // param Number posX - the x coordinate to zoom towards
+     * // param Number posY - the y coordinate to zoom towards
+     * // param Number time - the duration in ms of the entire zoom operation
+     * // param easingFn - A string or custom function specifying an easing.
+     * //                   (Defaults to linear behavior.)
+     * //                   See `Crafty.easing` for more information.
+     * //
+     * // Zooms the camera towards a given point, preserving the current center.
+     * // `amt > 1` will bring the camera closer to the subject,
+     * // `amt < 1` will bring it farther away,
+     * // `amt = 0` will reset to the default zoom level.
+     * // Zooming is multiplicative. To reset the zoom amount, pass `0`.
+     * //
+     * // <example>
+     * // // Make the entities appear twice as large by zooming in towards (100,100) over the duration of 3 seconds using linear easing behavior
+     * // zoomTowards(2, 100, 100, 3000);
+     * // </example>
+     * //
+     * function zoomTowards (amt, posX, posY, time, easingFn) {
+     *     var scale = Crafty.viewport._scale,
+     *         // current viewport center
+     *         centX = -Crafty.viewport._x + Crafty.viewport._width / 2 / scale,
+     *         centY = -Crafty.viewport._y + Crafty.viewport._height / 2 / scale,
+     *         // direction vector from viewport center to position
+     *         deltaX = posX - centX,
+     *         deltaY = posY - centY;
+     *     var f = amt - 1;
+     *
+     *     Crafty.viewport.zoom(amt, centX + deltaX * f, centY + deltaY * f, time, easingFn);
+     * }
+     *
+     * // don't restrict panning of viewport in any way
+     * Crafty.viewport.clampToEntities = false;
+     *
+     * // enable panning of viewport by dragging the mouse
+     * Crafty.viewport.mouselook(true);
+     *
+     * // enable interactive map-like zooming by scrolling the mouse
+     * Crafty.bind("MouseWheelScroll", function (evt) {
+     *     var pos = Crafty.domHelper.translate(evt.clientX, evt.clientY);
+     *     zoomTowards(1 + evt.direction/10, pos.x, pos.y, 5);
+     * });
+     * ~~~
+     */
+    mouseWheelDispatch: function (e) {
+        e.direction = (e.detail < 0 || e.wheelDelta > 0) ? 1 : -1;
+        Crafty.trigger("MouseWheelScroll", e);
+    },
+
+    /**@
+     * #Crafty.keyboardDispatch
+     * @category Input
+     * @kind Method
+     * @private
+     *
+     * Internal method which dispatches keyboard events received by Crafty.
+     * @trigger KeyDown - is triggered for each entity when the DOM 'keydown' event is triggered. - { key: `Crafty.keys` keyCode (Number), originalEvent: original KeyboardEvent } - Crafty's KeyboardEvent
+     * @trigger KeyUp - is triggered for each entity when the DOM 'keyup' event is triggered. - { key: `Crafty.keys` keyCode (Number), originalEvent: original KeyboardEvent } - Crafty's KeyboardEvent
+     *
+     * This method processes a native [`KeyboardEvent`](https://developer.mozilla.org/en-US/docs/Web/API/KeyboardEvent) received by `window.document`,
+     * wraps it in a custom event object (for cross-browser compatibility) and dispatches it to the global Crafty object and thus to every entity.
+     *
+     * This method also updates `Crafty.keydown`.
+     *
+     * @example
+     * ~~~
+     * Crafty.bind('KeyDown', function(e) {
+     *     if (e.key === Crafty.keys.LEFT_ARROW) {
+     *       Crafty.viewport.x++;
+     *     } else if (e.key === Crafty.keys.RIGHT_ARROW) {
+     *       Crafty.viewport.x--;
+     *     } else if (e.key === Crafty.keys.UP_ARROW) {
+     *       Crafty.viewport.y++;
+     *     } else if (e.key === Crafty.keys.DOWN_ARROW) {
+     *       Crafty.viewport.y--;
+     *     }
+     *   });
+     * ~~~
+     *
+     * @see Crafty.keys, Crafty.keydown, Keyboard
+     */
+    keyboardDispatch: function (e) {
+        // Use a Crafty-standard event object to avoid cross-browser issues
+        var original = e,
+            evnt = {},
+            props = "char charCode keyCode type shiftKey ctrlKey metaKey timestamp".split(" ");
+        for (var i = props.length; i;) {
+            var prop = props[--i];
+            evnt[prop] = original[prop];
+        }
+        evnt.which = original.charCode !== null ? original.charCode : original.keyCode;
+        evnt.key = original.keyCode || original.which;
+        evnt.originalEvent = original;
+        e = evnt;
+
+        if (e.type === "keydown") {
+            if (Crafty.keydown[e.key] !== true) {
+                Crafty.keydown[e.key] = true;
+                Crafty.trigger("KeyDown", e);
+            }
+        } else if (e.type === "keyup") {
+            delete Crafty.keydown[e.key];
+            Crafty.trigger("KeyUp", e);
+        }
+
+        //prevent default actions for all keys except backspace and F1-F12 and except actions in INPUT and TEXTAREA.
+        //prevent bubbling up for all keys except backspace and F1-F12.
+        //Among others this prevent the arrow keys from scrolling the parent page
+        //of an iframe hosting the game
+        if (Crafty.selected && !(e.key === 8 || e.key >= 112 && e.key <= 135)) {
+            if (original.stopPropagation) original.stopPropagation();
+            else original.cancelBubble = true;
+
+            //Don't prevent default actions if target node is input or textarea.
+            if (original.target && original.target.nodeName !== 'INPUT' && original.target.nodeName !== 'TEXTAREA') {
+                if (original.preventDefault) {
+                    original.preventDefault();
+                } else {
+                    original.returnValue = false;
+                }
+            }
+            return false;
+        }
+    }
+});
+
+//initialize the input events onload
+Crafty._preBind("Load", function () {
+    Crafty.addEvent(this, "keydown", Crafty.keyboardDispatch);
+    Crafty.addEvent(this, "keyup", Crafty.keyboardDispatch);
+
+    Crafty.addEvent(this, Crafty.stage.elem, "mousedown", Crafty.mouseDispatch);
+    Crafty.addEvent(this, Crafty.stage.elem, "mouseup", Crafty.mouseDispatch);
+    Crafty.addEvent(this, document.body, "mouseup", Crafty.detectBlur);
+    Crafty.addEvent(this, window, "blur", Crafty.resetKeyDown);
+    Crafty.addEvent(this, Crafty.stage.elem, "mousemove", Crafty.mouseDispatch);
+    Crafty.addEvent(this, Crafty.stage.elem, "click", Crafty.mouseDispatch);
+    Crafty.addEvent(this, Crafty.stage.elem, "dblclick", Crafty.mouseDispatch);
+
+    Crafty.addEvent(this, Crafty.stage.elem, "touchstart", Crafty.touchDispatch);
+    Crafty.addEvent(this, Crafty.stage.elem, "touchmove", Crafty.touchDispatch);
+    Crafty.addEvent(this, Crafty.stage.elem, "touchend", Crafty.touchDispatch);
+    Crafty.addEvent(this, Crafty.stage.elem, "touchcancel", Crafty.touchDispatch);
+    Crafty.addEvent(this, Crafty.stage.elem, "touchleave", Crafty.touchDispatch);
+
+    if (Crafty.support.prefix === "Moz") // mouse wheel event for firefox
+        Crafty.addEvent(this, Crafty.stage.elem, "DOMMouseScroll", Crafty.mouseWheelDispatch);
+    else // mouse wheel event for rest of browsers
+        Crafty.addEvent(this, Crafty.stage.elem, "mousewheel", Crafty.mouseWheelDispatch);
+});
+
+Crafty._preBind("CraftyStop", function () {
+    Crafty.removeEvent(this, "keydown", Crafty.keyboardDispatch);
+    Crafty.removeEvent(this, "keyup", Crafty.keyboardDispatch);
+
+    if (Crafty.stage) {
+        Crafty.removeEvent(this, Crafty.stage.elem, "mousedown", Crafty.mouseDispatch);
+        Crafty.removeEvent(this, Crafty.stage.elem, "mouseup", Crafty.mouseDispatch);
+        Crafty.removeEvent(this, Crafty.stage.elem, "mousemove", Crafty.mouseDispatch);
+        Crafty.removeEvent(this, Crafty.stage.elem, "click", Crafty.mouseDispatch);
+        Crafty.removeEvent(this, Crafty.stage.elem, "dblclick", Crafty.mouseDispatch);
+
+        Crafty.removeEvent(this, Crafty.stage.elem, "touchstart", Crafty.touchDispatch);
+        Crafty.removeEvent(this, Crafty.stage.elem, "touchmove", Crafty.touchDispatch);
+        Crafty.removeEvent(this, Crafty.stage.elem, "touchend", Crafty.touchDispatch);
+        Crafty.removeEvent(this, Crafty.stage.elem, "touchcancel", Crafty.touchDispatch);
+        Crafty.removeEvent(this, Crafty.stage.elem, "touchleave", Crafty.touchDispatch);
+
+        if (Crafty.support.prefix === "Moz") // mouse wheel event for firefox
+            Crafty.removeEvent(this, Crafty.stage.elem, "DOMMouseScroll", Crafty.mouseWheelDispatch);
+        else // mouse wheel event for rest of browsers
+            Crafty.removeEvent(this, Crafty.stage.elem, "mousewheel", Crafty.mouseWheelDispatch);
+    }
+
+    Crafty.removeEvent(this, document.body, "mouseup", Crafty.detectBlur);
+    Crafty.removeEvent(this, window, "blur", Crafty.resetKeyDown);
+});
+
+/**@
+ * #Mouse
+ * @category Input
+ * @kind Component
+ *
+ * Provides the entity with mouse related events.
+ *
+ * If you do not add this component, mouse events will not be triggered on the entity.
+ *
+ * @trigger MouseOver - when the mouse enters - MouseEvent
+ * @trigger MouseOut - when the mouse leaves - MouseEvent
+ * @trigger MouseDown - when the mouse button is pressed on - MouseEvent
+ * @trigger MouseUp - when the mouse button is released on - MouseEvent
+ * @trigger Click - when the user clicks - MouseEvent
+ * @trigger DoubleClick - when the user double clicks - MouseEvent
+ * @trigger MouseMove - when the mouse is over and moves - MouseEvent
+ *
+ * The event callbacks are triggered with a native [`MouseEvent`](https://developer.mozilla.org/en-US/docs/Web/API/MouseEvent) parameter,
+ * which is further augmented with additional properties:
+ * ~~~
+ * //(x,y) coordinates of mouse event in web-browser (screen) space
+ * e.clientX
+ * e.clientY
+ *
+ * //(x,y) coordinates of mouse event in world (default viewport) space
+ * e.realX
+ * e.realY
+ *
+ * // Normalized mouse button according to Crafty.mouseButtons:
+ * // Crafty.mouseButtons.LEFT, Crafty.mouseButtons.RIGHT or Crafty.mouseButtons.MIDDLE
+ * e.mouseButton
+ * ~~~
+ *
+ * @note If you're targeting mobile, you should know that by default Crafty turns touch events into mouse events, 
+ * making mouse dependent components work with touch. However, if you need multitouch, you'll have 
+ * to make use of the Touch component instead, which can break compatibility with things which directly interact with the Mouse component.
+ *
+ * @example
+ * ~~~
+ * var myEntity = Crafty.e('2D, Canvas, Color, Mouse')
+ * .attr({x: 10, y: 10, w: 40, h: 40})
+ * .color('red')
+ * .bind('Click', function(MouseEvent){
+ *   alert('clicked', MouseEvent);
+ * });
+ *
+ * myEntity.bind('MouseUp', function(e) {
+ *    if( e.mouseButton == Crafty.mouseButtons.RIGHT )
+ *        Crafty.log("Clicked right button");
+ * })
+ * ~~~
+ * @see Crafty.mouseButtons
+ * @see Crafty.mouseDispatch
+ * @see Crafty.multitouch
+ * @see Crafty.touchDispatch
+ */
+Crafty.c("Mouse", {
+    init: function () {
+        Crafty.mouseObjs++;
+        this.requires("AreaMap")
+            .bind("Remove", function () {
+                Crafty.mouseObjs--;
+            });
+    }
+});
+
+/**@
+ * #Touch
+ * @category Input
+ * @kind Component
+ * Provides the entity with touch related events
+ * @trigger TouchStart - when entity is touched - TouchPoint
+ * @trigger TouchMove - when finger is moved over entity - TouchPoint
+ * @trigger TouchCancel - when a touch event has been disrupted in some way - TouchPoint
+ * @trigger TouchEnd - when the finger is raised over the entity, or when finger leaves entity.  (Passes no data) - null
+ *
+ * To be able to use multitouch, you must enable it with  `Crafty.multitouch(true)`.
+ *
+ * If you don't need multitouch, you can probably use the Mouse component instead, since by default Crafty will trigger mouse events for touch input.
+ *
+ * You can read more about the TouchEvent.
+ * - [TouchEvent.touches and TouchEvent.changedTouches](https://developer.mozilla.org/en-US/docs/Web/API/TouchEvent)
+ * - [TouchPoint](http://www.w3.org/TR/touch-events/#dfn-active-touch-point) is the parameter passed to the event callback in the related touch.
+ * 
+ *
+ * @example
+ * ~~~
+ * Crafty.multitouch(true);
+ * 
+ * var myEntity = Crafty.e('2D, Canvas, Color, Touch')
+ * .attr({x: 10, y: 10, w: 40, h: 40})
+ * .color('green')
+ * .bind('TouchStart', function(TouchPoint){
+ *   Crafty.log('myEntity has been touched', TouchPoint);
+ * }).bind('TouchMove', function(TouchPoint) {
+ *   Crafty.log('Finger moved over myEntity at the { x: ' + TouchPoint.realX + ', y: ' + TouchPoint.realY + ' } coordinates.');
+ * }).bind('TouchEnd', function() {
+ *   Crafty.log('Touch over myEntity has finished.');
+ * });
+ * ~~~
+ * @see Crafty.multitouch
+ * @see Crafty.touchDispatch
+ */
+Crafty.c("Touch", {
+    init: function () {
+        Crafty.touchObjs++;
+        this.requires("AreaMap")
+            .bind("Remove", function () {
+                Crafty.touchObjs--;
+            });
+    }
+});
+
+/**@
+ * #AreaMap
+ * @category Input
+ * @kind Component
+ * 
+ * Component used by Mouse and Touch.
+ * Can be added to other entities for use with the Crafty.findClosestEntityByComponent method.
+ * 
+ * @see Button
+ * @see Crafty.polygon
+ */
+Crafty.c("AreaMap", {
+    init: function () {
+        if (this.has("Renderable") && this._drawLayer) {
+            this._drawLayer._pointerEntities++;
+        }
+    },
+
+    remove: function () {
+        if (this.has("Renderable") && this._drawLayer) {
+            this._drawLayer._pointerEntities--;
+        }
+    },
+
+    events: {
+        "LayerAttached": function (layer) {
+            layer._pointerEntities++;
+        },
+        "LayerDetached": function (layer) {
+            layer._pointerEntities--;
+        }
+    },
+
+    /**@
+     * #.areaMap
+     * @comp AreaMap
+     * @kind Method
+     *
+     * @trigger NewAreaMap - when a new areaMap is assigned - Crafty.polygon
+     *
+     * @sign public this .areaMap(Crafty.polygon polygon)
+     * @param polygon - Instance of Crafty.polygon used to check if the mouse coordinates are inside this region
+     *
+     * @sign public this .areaMap(Array coordinatePairs)
+     * @param coordinatePairs - Array of `x`, `y` coordinate pairs to generate a polygon
+     *
+     * @sign public this .areaMap(x1, y1,.., xN, yN)
+     * @param point# - List of `x`, `y` coordinate pairs to generate a polygon
+     *
+     * Assign a polygon to the entity so that pointer (mouse or touch) events will only be triggered if
+     * the coordinates are inside the given polygon.
+     *
+     * @example
+     * ~~~
+     * Crafty.e("2D, DOM, Color, Mouse")
+     *     .color("red")
+     *     .attr({ w: 100, h: 100 })
+     *     .bind('MouseOver', function() {Crafty.log("over")})
+     *     .areaMap(0, 0, 50, 0, 50, 50, 0, 50);
+     *
+     * Crafty.e("2D, Mouse")
+     *     .areaMap([0, 0, 50, 0, 50, 50, 0, 50]);
+     *
+     * Crafty.e("2D, Mouse").areaMap(
+     *     new Crafty.polygon([0, 0, 50, 0, 50, 50, 0, 50])
+     * );
+     * ~~~
+     *
+     * @see Crafty.polygon
+     */
+    areaMap: function (poly) {
+        //create polygon
+        if (arguments.length > 1) {
+            //convert args to array to create polygon
+            var args = Array.prototype.slice.call(arguments, 0);
+            poly = new Crafty.polygon(args);
+        } else if (poly.constructor === Array) {
+            poly = new Crafty.polygon(poly.slice());
+        } else {
+            poly = poly.clone();
+        }
+
+        poly.shift(this._x, this._y);
+        this.mapArea = poly;
+        this.attach(this.mapArea);
+        this.trigger("NewAreaMap", poly);
+        return this;
+    }
+});
+
+/**@
+ * #Button
+ * @category Input
+ * @kind Component
+ * 
+ * Provides the entity with touch or mouse functionality, depending on whether this is a pc 
+ * or mobile device, and also on multitouch configuration.
+ *
+ * @see Mouse
+ * @see Touch
+ * @see Crafty.multitouch
+ */
+Crafty.c("Button", {
+    init: function () {
+        var req = (!Crafty.mobile || (Crafty.mobile && !Crafty.multitouch())) ? "Mouse" : "Touch";
+        this.requires(req);
+    }
+});
+
+/**@
+ * #MouseDrag
+ * @category Input
+ * @kind Component
+ * 
+ * Provides the entity with drag and drop mouse events.
+ * @trigger Dragging - is triggered each frame the entity is being dragged - MouseEvent
+ * @trigger StartDrag - is triggered when dragging begins - MouseEvent
+ * @trigger StopDrag - is triggered when dragging ends - MouseEvent
+ *
+ * @see Mouse
+ */
+Crafty.c("MouseDrag", {
+    _dragging: false,
+
+    init: function () {
+        this.requires("Mouse");
+        this.bind("MouseDown", this._ondown);
+    },
+
+    remove: function () {
+        this.unbind("MouseDown", this._ondown);
+    },
+
+    // When dragging is enabled, this method is bound to the MouseDown crafty event
+    _ondown: function (e) {
+        if (e.mouseButton !== Crafty.mouseButtons.LEFT) return;
+        this.startDrag(e);
+    },
+
+    // While a drag is occurring, this method is bound to the mousemove DOM event
+    _ondrag: function (e) {
+        // ignore invalid 0 position - strange problem on ipad
+        if (!this._dragging || e.realX === 0 || e.realY === 0) return false;
+        this.trigger("Dragging", e);
+    },
+
+    // While a drag is occurring, this method is bound to mouseup DOM event
+    _onup: function (e) {
+        if (e.mouseButton !== Crafty.mouseButtons.LEFT) return;
+        this.stopDrag(e);
+    },
+
+    /**@
+     * #.startDrag
+     * @comp MouseDrag
+     * @kind Method
+     * 
+     * @sign public this .startDrag(void)
+     *
+     * Make the entity produce drag events, essentially making the entity follow the mouse positions.
+     *
+     * @see .stopDrag
+     */
+    startDrag: function (e) {
+        if (this._dragging) return;
+        this._dragging = true;
+
+        Crafty.addEvent(this, Crafty.stage.elem, "mousemove", this._ondrag);
+        Crafty.addEvent(this, Crafty.stage.elem, "mouseup", this._onup);
+
+        // if event undefined, use the last known position of the mouse
+        this.trigger("StartDrag", e || Crafty.lastEvent);
+        return this;
+    },
+
+    /**@
+     * #.stopDrag
+     * @comp MouseDrag
+     * @kind Method
+     * 
+     * @sign public this .stopDrag(void)
+     *
+     * Stop the entity from producing drag events, essentially reproducing the drop.
+     *
+     * @see .startDrag
+     */
+    stopDrag: function (e) {
+        if (!this._dragging) return;
+        this._dragging = false;
+
+        Crafty.removeEvent(this, Crafty.stage.elem, "mousemove", this._ondrag);
+        Crafty.removeEvent(this, Crafty.stage.elem, "mouseup", this._onup);
+
+        // if event undefined, use the last known position of the mouse
+        this.trigger("StopDrag", e || Crafty.lastEvent);
+        return this;
+    }
+});
+
+/**@
+ * #Keyboard
+ * @category Input
+ * @kind Component
+ *
+ * Provides entity with keyboard events.
+ * @trigger KeyDown - is triggered for each entity when the DOM 'keydown' event is triggered. - { key: `Crafty.keys` keyCode (Number), originalEvent: original KeyboardEvent } - Crafty's KeyboardEvent
+ * @trigger KeyUp - is triggered for each entity when the DOM 'keyup' event is triggered. - { key: `Crafty.keys` keyCode (Number), originalEvent: original KeyboardEvent } - Crafty's KeyboardEvent
+ *
+ * In addition to binding to these events, the current state (pressed/released) of a key can also be queried using the `.isDown` method.
+ *
+ * @example
+ * ~~~
+ * Crafty.e("2D, DOM, Color, Keyboard")
+ *   .attr({x: 100, y: 100, w: 50, h: 50})
+ *   .color("red")
+ *   .bind('KeyDown', function(e) {
+ *     if (e.key == Crafty.keys.LEFT_ARROW) {
+ *       this.x = this.x-1;
+ *     } else if (e.key == Crafty.keys.RIGHT_ARROW) {
+ *       this.x = this.x+1;
+ *     } else if (e.key == Crafty.keys.UP_ARROW) {
+ *       this.y = this.y-1;
+ *     } else if (e.key == Crafty.keys.DOWN_ARROW) {
+ *       this.y = this.y+1;
+ *     }
+ *   });
+ * ~~~
+ *
+ * @see Crafty.keys
+ * @see Crafty.keydown
+ * @see Crafty.keyboardDispatch
+ */
+Crafty.c("Keyboard", {
+    /**@
+     * #.isDown
+     * @comp Keyboard
+     * @kind Method
+     * 
+     * @sign public Boolean isDown(String keyName)
+     * @param keyName - Name of the key to check. See `Crafty.keys`.
+     * @sign public Boolean isDown(Number keyCode)
+     * @param keyCode - Key code in `Crafty.keys`.
+     *
+     * Determine if a certain key is currently down.
+     *
+     * @example
+     * ~~~
+     * ent.requires('Keyboard')
+     *    .bind('EnterFrame', function() {
+     *       if (this.isDown('SPACE'))
+     *          this.y--;
+     *    });
+     * ~~~
+     *
+     * @see Crafty.keys
+     */
+    isDown: function (key) {
+        if (typeof key === "string") {
+            key = Crafty.keys[key];
+        }
+        return !!Crafty.keydown[key];
+    }
+});
+},{"../core/core.js":9}],7:[function(require,module,exports){
+var Crafty = require('../core/core.js');
+
+
+Crafty.extend({
+    /**@
+     * #Crafty.keys
+     * @category Input
+     * @kind Property
+     * 
+     * Object of key names and the corresponding Unicode key code.
+     *
+     * ~~~
+     * BACKSPACE: 8,
+     * TAB: 9,
+     * ENTER: 13,
+     * PAUSE: 19,
+     * CAPS: 20,
+     * ESC: 27,
+     * SPACE: 32,
+     * PAGE_UP: 33,
+     * PAGE_DOWN: 34,
+     * END: 35,
+     * HOME: 36,
+     * LEFT_ARROW: 37,
+     * UP_ARROW: 38,
+     * RIGHT_ARROW: 39,
+     * DOWN_ARROW: 40,
+     * INSERT: 45,
+     * DELETE: 46,
+     * 0: 48,
+     * 1: 49,
+     * 2: 50,
+     * 3: 51,
+     * 4: 52,
+     * 5: 53,
+     * 6: 54,
+     * 7: 55,
+     * 8: 56,
+     * 9: 57,
+     * A: 65,
+     * B: 66,
+     * C: 67,
+     * D: 68,
+     * E: 69,
+     * F: 70,
+     * G: 71,
+     * H: 72,
+     * I: 73,
+     * J: 74,
+     * K: 75,
+     * L: 76,
+     * M: 77,
+     * N: 78,
+     * O: 79,
+     * P: 80,
+     * Q: 81,
+     * R: 82,
+     * S: 83,
+     * T: 84,
+     * U: 85,
+     * V: 86,
+     * W: 87,
+     * X: 88,
+     * Y: 89,
+     * Z: 90,
+     * NUMPAD_0: 96,
+     * NUMPAD_1: 97,
+     * NUMPAD_2: 98,
+     * NUMPAD_3: 99,
+     * NUMPAD_4: 100,
+     * NUMPAD_5: 101,
+     * NUMPAD_6: 102,
+     * NUMPAD_7: 103,
+     * NUMPAD_8: 104,
+     * NUMPAD_9: 105,
+     * MULTIPLY: 106,
+     * ADD: 107,
+     * SUBSTRACT: 109,
+     * DECIMAL: 110,
+     * DIVIDE: 111,
+     * F1: 112,
+     * F2: 113,
+     * F3: 114,
+     * F4: 115,
+     * F5: 116,
+     * F6: 117,
+     * F7: 118,
+     * F8: 119,
+     * F9: 120,
+     * F10: 121,
+     * F11: 122,
+     * F12: 123,
+     * SHIFT: 16,
+     * CTRL: 17,
+     * ALT: 18,
+     * PLUS: 187,
+     * COMMA: 188,
+     * MINUS: 189,
+     * PERIOD: 190,
+     * PULT_UP: 29460,
+     * PULT_DOWN: 29461,
+     * PULT_LEFT: 4,
+     * PULT_RIGHT': 5
+     * ~~~
+     */
+    keys: {
+        'BACKSPACE': 8,
+        'TAB': 9,
+        'ENTER': 13,
+        'PAUSE': 19,
+        'CAPS': 20,
+        'ESC': 27,
+        'SPACE': 32,
+        'PAGE_UP': 33,
+        'PAGE_DOWN': 34,
+        'END': 35,
+        'HOME': 36,
+        'LEFT_ARROW': 37,
+        'UP_ARROW': 38,
+        'RIGHT_ARROW': 39,
+        'DOWN_ARROW': 40,
+        'INSERT': 45,
+        'DELETE': 46,
+        '0': 48,
+        '1': 49,
+        '2': 50,
+        '3': 51,
+        '4': 52,
+        '5': 53,
+        '6': 54,
+        '7': 55,
+        '8': 56,
+        '9': 57,
+        'A': 65,
+        'B': 66,
+        'C': 67,
+        'D': 68,
+        'E': 69,
+        'F': 70,
+        'G': 71,
+        'H': 72,
+        'I': 73,
+        'J': 74,
+        'K': 75,
+        'L': 76,
+        'M': 77,
+        'N': 78,
+        'O': 79,
+        'P': 80,
+        'Q': 81,
+        'R': 82,
+        'S': 83,
+        'T': 84,
+        'U': 85,
+        'V': 86,
+        'W': 87,
+        'X': 88,
+        'Y': 89,
+        'Z': 90,
+        'NUMPAD_0': 96,
+        'NUMPAD_1': 97,
+        'NUMPAD_2': 98,
+        'NUMPAD_3': 99,
+        'NUMPAD_4': 100,
+        'NUMPAD_5': 101,
+        'NUMPAD_6': 102,
+        'NUMPAD_7': 103,
+        'NUMPAD_8': 104,
+        'NUMPAD_9': 105,
+        'MULTIPLY': 106,
+        'ADD': 107,
+        'SUBSTRACT': 109,
+        'DECIMAL': 110,
+        'DIVIDE': 111,
+        'F1': 112,
+        'F2': 113,
+        'F3': 114,
+        'F4': 115,
+        'F5': 116,
+        'F6': 117,
+        'F7': 118,
+        'F8': 119,
+        'F9': 120,
+        'F10': 121,
+        'F11': 122,
+        'F12': 123,
+        'SHIFT': 16,
+        'CTRL': 17,
+        'ALT': 18,
+        'PLUS': 187,
+        'COMMA': 188,
+        'MINUS': 189,
+        'PERIOD': 190,
+        'PULT_UP': 29460,
+        'PULT_DOWN': 29461,
+        'PULT_LEFT': 4,
+        'PULT_RIGHT': 5
+
+    },
+
+    /**@
+     * #Crafty.mouseButtons
+     * @category Input
+     * @kind Property
+     * 
+     * An object mapping mouseButton names to the corresponding button ID.
+     * In all mouseEvents, we add the `e.mouseButton` property with a value normalized to match e.button of modern webkit browsers:
+     *
+     * ~~~
+     * LEFT: 0,
+     * MIDDLE: 1,
+     * RIGHT: 2
+     * ~~~
+     */
+    mouseButtons: {
+        LEFT: 0,
+        MIDDLE: 1,
+        RIGHT: 2
+    }
+});
+},{"../core/core.js":9}],8:[function(require,module,exports){
+var Crafty = require('../core/core.js');
+
+
+/**@
+ * #Crafty.easing
+ * @category Animation
+ * @kind Class
+ * 
+ *
+ * An object for tracking transitions.  Typically used indirectly through "SpriteAnimation", "Tween", or viewport animations.
+ * 
+ * If a method allows you to specify the type of easing, you can do so by providing a custom function or a string corresponding to the name of a built-in method.
+ *
+ * Built-in easing functions are "linear", "smoothStep", "smootherStep", "easeInQuad", "easeOutQuad", and "easeInOutQuad".
+ *
+ * A custom function will be passed a parameter `t` which will vary between 0 and 1, and should return the progress of the animation between 0 and 1.
+ * @example
+ * Here is how you might use easing functions with the "Tween" component.
+ * ~~~~
+ * var e = Crafty.e("2D, Tween");
+ * // Use built-in easing functions
+ * e.tween({x:100}, 1000, "smoothStep");
+ * e.tween({y:100}, 1000, "easeInQuad");
+ * // Define a custom easing function: 2t^2 - t
+ * e.tween({w:0}, 1000, function(t){return 2*t*t - t;});
+ * ~~~
+ * @see Tween, SpriteAnimation
+ */
+var easing = function(duration, easingFn) {
+	this.timePerFrame = 1000 / Crafty.timer.FPS();
+	this.duration = duration;   //default duration given in ms
+	if (typeof easingFn === "function"){
+		this.easing_function = easingFn;
+	} else if (typeof easingFn === "string" && this.standardEasingFunctions[easingFn]){
+		this.easing_function = this.standardEasingFunctions[easingFn];
+	} else {
+		this.easing_function = this.standardEasingFunctions.linear;
+	}
+	this.reset();
+};
+
+
+easing.prototype = {
+	duration: 0,
+	clock:0,
+	steps: null,
+	complete: false,
+	paused: false,
+
+	// init values
+	reset: function(){
+		this.loops = 1;
+		this.clock = 0;
+		this.complete = false;
+		this.paused = false;
+	},
+
+	repeat: function(loopCount){
+		this.loops = loopCount;
+	},
+
+	setProgress: function(progress, loopCount){
+		this.clock = this.duration * progress;
+		if (typeof loopCount !== "undefined")
+			this.loops = loopCount;
+
+	},
+
+	pause: function(){
+		this.paused = true;
+	},
+
+	resume: function(){
+		this.paused = false;
+		this.complete = false;
+	},
+
+	// Increment the clock by some amount dt
+	// Handles looping and sets a flag on completion
+	tick: function(dt){
+		if (this.paused || this.complete) return;
+		this.clock += dt;
+		this.frames = Math.floor(this.clock/this.timePerFrame);
+		while (this.clock >= this.duration && this.complete === false){
+			this.loops--;
+			if (this.loops > 0)
+				this.clock -= this.duration;
+			else
+				this.complete = true;
+		}
+	},
+
+	// same as value for now; with other time value functions would be more useful
+	time: function(){
+		return ( Math.min(this.clock/this.duration, 1) );
+
+	},
+
+	// Value is where along the tweening curve we are
+	value: function(){
+		return this.easing_function(this.time());
+	},
+
+	// Easing functions, formulas taken from https://gist.github.com/gre/1650294
+	//	and https://en.wikipedia.org/wiki/Smoothstep
+	standardEasingFunctions: {
+		// no easing, no acceleration
+		linear: function (t) { return t; },
+		// smooth step; starts and ends with v=0
+		smoothStep: function(t){ return (3-2*t)*t*t; },
+		// smootherstep; starts and ends with v, a=0
+		smootherStep: function(t){ return (6*t*t-15*t+10)*t*t*t; },
+		// quadratic curve; starts with v=0
+		easeInQuad: function (t) { return t*t; },
+		// quadratic curve; ends with v=0
+		easeOutQuad: function (t) { return t*(2-t); },
+		// quadratic curve; starts and ends with v=0
+		easeInOutQuad: function (t) { return t<0.5 ? 2*t*t : (4-2*t)*t-1; }
+	}
+};
+
+module.exports = easing;
+},{"../core/core.js":9}],9:[function(require,module,exports){
+var version = require('./version');
+
+
+/**@
+ * #Crafty
+ * @category Core
+ * @kind CoreObject
+ *
+ * `Crafty` is both an object, and a function for selecting entities.
+ * Its many methods and properties are discussed individually.
+ * Below is the documentation for use as a selector.
+ *
+ * @sign public EntitySelection Crafty( String selector)
+ * @param selector - A string representing which entities to select
+ *
+ * @sign public Entity Crafty( Number selector )
+ * @param selector - An entity's id
+ *
+ * Select a set of or single entities by components or an entity's ID.
+ *
+ * Crafty uses syntax similar to jQuery by having a selector engine to select entities by their components.
+ *
+ * If there is more than one match, the return value is an Array-like object listing the ID numbers of each matching entity. If there is exactly one match, the entity itself is returned. If you're not sure how many matches to expect, check the number of matches via Crafty(...).length. Alternatively, use Crafty(...).each(...), which works in all cases.
+ *
+ * @note You can treat an entity as if it was a selection of length 1 -- it implements all the same methods.
+ *
+ * @example
+ * ~~~
+ *    Crafty("MyComponent")
+ *    Crafty("Hello 2D Component")
+ *    Crafty("Hello, 2D, Component")
+ * ~~~
+ *
+ * The first selector will return all entities that have the component `MyComponent`. The second will return all entities that have `Hello` and `2D` and `Component` whereas the last will return all entities that have at least one of those components (or).
+ *
+ * ~~~
+ *   Crafty("*")
+ * ~~~
+ * Passing `*` will select all entities.
+ *
+ * ~~~
+ *   Crafty(1)
+ * ~~~
+ * Passing an integer will select the entity with that `ID`.
+ *
+ * To work directly with an array of entities, use the `get()` method on a selection.
+ * To call a function in the context of each entity, use the `.each()` method.
+ *
+ * The event related methods such as `bind` and `trigger` will work on selections of entities.
+ *
+ * @see Crafty Core#.get
+ * @see Crafty Core#.each
+ */
+
+var Crafty = function (selector) {
+    return new Crafty.fn.init(selector);
+};
+    // Internal variables
+var GUID, frame, components, entities, handlers, onloads,
+slice, rlist, rspace;
+
+
+components  = {}; // Map of components and their functions
+slice       = Array.prototype.slice;
+rlist       = /\s*,\s*/;
+rspace      = /\s+/;
+
+var initState = function () {
+    GUID        = 1; // GUID for entity IDs
+    frame       = 0;
+
+    entities    = {}; // Map of entities and their data
+    handlers    = {}; // Global event handlers
+    onloads     = []; // Temporary storage of onload handlers
+};
+
+initState();
+
+/**@
+ * #Crafty Core
+ * @category Core
+ * @kind CoreObject
+ * 
+ * @trigger NewEntityName - After setting new name for entity - String - entity name
+ * @trigger NewComponent - when a new component is added to the entity - String - Component
+ * @trigger RemoveComponent - when a component is removed from the entity - String - Component
+ * @trigger Remove - when the entity is removed by calling .destroy()
+ *
+ * A set of methods added to every single entity.
+ */
+Crafty.fn = Crafty.prototype = {
+
+    init: function (selector) {
+        //select entities by component
+        if (typeof selector === "string") {
+            var elem = 0, //index elements
+                e, //entity forEach
+                current,
+                and = false, //flags for multiple
+                or = false,
+                del,
+                comps,
+                score,
+                i, l;
+
+            if (selector === '*') {
+                i = 0;
+                for (e in entities) {
+                    // entities is something like {2:entity2, 3:entity3, 11:entity11, ...}
+                    // The for...in loop sets e to "2", "3", "11", ... i.e. all
+                    // the entity ID numbers. e is a string, so +e converts to number type.
+                    this[i] = +e;
+                    i++;
+                }
+                this.length = i;
+                // if there's only one entity, return the actual entity
+                if (i === 1) {
+                    return entities[this[0]];
+                }
+                return this;
+            }
+
+            //multiple components OR
+            if (selector.indexOf(',') !== -1) {
+                or = true;
+                del = rlist;
+                //deal with multiple components AND
+            } else if (selector.indexOf(' ') !== -1) {
+                and = true;
+                del = rspace;
+            }
+
+            //loop over entities
+            for (e in entities) {
+                if (!entities.hasOwnProperty(e)) continue; //skip
+                current = entities[e];
+
+                if (and || or) { //multiple components
+                    comps = selector.split(del);
+                    i = 0;
+                    l = comps.length;
+                    score = 0;
+
+                    for (; i < l; i++) //loop over components
+                        if (current.__c[comps[i]]) score++; //if component exists add to score
+
+                        //if anded comps and has all OR ored comps and at least 1
+                    if (and && score === l || or && score > 0) this[elem++] = +e;
+
+                } else if (current.__c[selector]) this[elem++] = +e; //convert to int
+            }
+
+            //extend all common components
+            if (elem > 0 && !and && !or) this.extend(components[selector]);
+            if (comps && and)
+                for (i = 0; i < l; i++) this.extend(components[comps[i]]);
+
+            this.length = elem; //length is the last index (already incremented)
+
+            // if there's only one entity, return the actual entity
+            if (elem === 1) {
+                return entities[this[elem - 1]];
+            }
+
+        } else { //Select a specific entity
+
+            if (!selector) { //nothin passed creates God entity
+                selector = 0;
+                if (!(selector in entities)) entities[selector] = this;
+            }
+
+            //if not exists, return undefined
+            if (!(selector in entities)) {
+                this.length = 0;
+                return this;
+            }
+
+            this[0] = selector;
+            this.length = 1;
+
+            //update from the cache
+            if (!this.__c) this.__c = {};
+            if (!this._callbacks) Crafty._addCallbackMethods(this);
+
+            //update to the cache if NULL
+            if (!entities[selector]) entities[selector] = this;
+            return entities[selector]; //return the cached selector
+        }
+
+        Crafty._addCallbackMethods(this);
+        return this;
+    },
+
+    /**@
+     * #.setName
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .setName(String name)
+     * @param name - A human readable name for debugging purposes.
+     *
+     * Set a human readable name for debugging purposes.
+     *
+     * @example
+     * ~~~
+     * var ent = Crafty.e().setName("Player");
+     * ~~~
+     *
+     * @see Crafty Core#.getName
+     */
+    setName: function (name) {
+        var entityName = String(name);
+        this._entityName = entityName;
+        this.trigger("NewEntityName", entityName);
+        return this;
+    },
+
+    /**@
+     * #.getName
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .getName(String name)
+     * @returns A human readable name for debugging purposes.
+     *
+     * Get the human readable name for debugging purposes.
+     *
+     * @example
+     * ~~~
+     * var ent = Crafty.e().setName("Player");
+     * var name = ent.getName();
+     * ~~~
+     *
+     * @see Crafty Core#.setName
+     */
+    getName: function (name) {
+        return this._entityName;
+    },
+
+    /**@
+     * #.addComponent
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .addComponent(String componentList)
+     * @param componentList - A string of components to add separated by a comma `,`
+     * @sign public this .addComponent(String Component1[, .., String ComponentN])
+     * @param Component# - Component ID to add.
+     *
+     * Adds a component to the selected entities or entity.
+     *
+     * Components are used to extend the functionality of entities.
+     * This means it will copy properties and assign methods to
+     * augment the functionality of the entity.
+     *
+     * For adding multiple components, you can either pass a string with
+     * all the component names (separated by commas), or pass each component name as
+     * an argument.
+     *
+     * If the component has a function named `init` it will be called.
+     *
+     * If the entity already has the component, the component is skipped (nothing happens).
+     *
+     * @example
+     * ~~~
+     * this.addComponent("2D, Canvas");
+     * this.addComponent("2D", "Canvas");
+     * ~~~
+     */
+    addComponent: function (id) {
+        var comps,
+            comp, c = 0;
+
+        //add multiple arguments
+        if (arguments.length === 1 && id.indexOf(',') !== -1) {
+            comps = id.split(rlist);
+        } else {
+            comps = arguments;
+        }
+
+        //extend the components
+        for (; c < comps.length; c++) {
+            // If component already exists, continue
+            if (this.__c[comps[c]] === true) {
+                continue;
+            }
+            this.__c[comps[c]] = true;
+            comp = components[comps[c]];
+            // Copy all methods of the component
+            this.extend(comp);
+            // Add any required components
+            if (comp && "required" in comp) {
+                this.requires( comp.required );
+            }
+            // Call constructor function
+            if (comp && "init" in comp) {
+                comp.init.call(this);
+            }
+            // Bind events
+            if (comp && "events" in comp){
+                var auto = comp.events;
+                for (var eventName in auto){
+                    var fn = typeof auto[eventName] === "function" ? auto[eventName] : comp[auto[eventName]];
+                    this.bind(eventName, fn);
+                }
+            }
+        }
+
+        this.trigger("NewComponent", comps);
+        return this;
+    },
+
+    /**@
+     * #.toggleComponent
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .toggleComponent(String ComponentList)
+     * @param ComponentList - A string of components to add or remove separated by a comma `,`
+     * @sign public this .toggleComponent(String Component1[, .., String componentN])
+     * @param Component# - Component ID to add or remove.
+     * 
+     * Add or Remove Components from an entity.
+     *
+     * @example
+     * ~~~
+     * var e = Crafty.e("2D,DOM,Test");
+     * e.toggleComponent("Test,Test2"); //Remove Test, add Test2
+     * e.toggleComponent("Test,Test2"); //Add Test, remove Test2
+     * ~~~
+     *
+     * ~~~
+     * var e = Crafty.e("2D,DOM,Test");
+     * e.toggleComponent("Test","Test2"); //Remove Test, add Test2
+     * e.toggleComponent("Test","Test2"); //Add Test, remove Test2
+     * e.toggleComponent("Test");         //Remove Test
+     * ~~~
+     */
+    toggleComponent: function (toggle) {
+        var i = 0,
+            l, comps;
+        if (arguments.length > 1) {
+            l = arguments.length;
+
+            for (; i < l; i++) {
+                if (this.has(arguments[i])) {
+                    this.removeComponent(arguments[i]);
+                } else {
+                    this.addComponent(arguments[i]);
+                }
+            }
+            //split components if contains comma
+        } else if (toggle.indexOf(',') !== -1) {
+            comps = toggle.split(rlist);
+            l = comps.length;
+            for (; i < l; i++) {
+                if (this.has(comps[i])) {
+                    this.removeComponent(comps[i]);
+                } else {
+                    this.addComponent(comps[i]);
+                }
+            }
+
+            //single component passed
+        } else {
+            if (this.has(toggle)) {
+                this.removeComponent(toggle);
+            } else {
+                this.addComponent(toggle);
+            }
+        }
+
+        return this;
+    },
+
+    /**@
+     * #.requires
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .requires(String componentList)
+     * @param componentList - List of components that must be added
+     *
+     * Makes sure the entity has the components listed. If the entity does not
+     * have the component, it will add it.
+     *
+     * (In the current version of Crafty, this function behaves exactly the same
+     * as `addComponent`. By convention, developers have used `requires` for
+     * component dependencies -- i.e. to indicate specifically that one component
+     * will only work properly if another component is present -- and used
+     * `addComponent` in all other situations.)
+     *
+     * @see .addComponent
+     */
+    requires: function (list) {
+        return this.addComponent(list);
+    },
+
+    /**@
+     * #.removeComponent
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .removeComponent(String Component[, soft])
+     * @param component - Component to remove
+     * @param soft - Whether to soft remove it (defaults to `true`)
+     *
+     * Removes a component from an entity. A soft remove (the default) will only
+     * refrain `.has()` from returning true. Hard will remove all
+     * associated properties and methods.
+     *
+     * @example
+     * ~~~
+     * var e = Crafty.e("2D,DOM,Test");
+     * e.removeComponent("Test");        //Soft remove Test component
+     * e.removeComponent("Test", false); //Hard remove Test component
+     * ~~~
+     */
+    removeComponent: function (id, soft) {
+        var comp = components[id];
+        this.trigger("RemoveComponent", id);
+        if (comp && "events" in comp){
+            var auto = comp.events;
+            for (var eventName in auto){
+                var fn = typeof auto[eventName] === "function" ? auto[eventName] : comp[auto[eventName]];
+                this.unbind(eventName, fn);
+            }
+        }
+        if (comp && "remove" in comp) {
+            comp.remove.call(this, false);
+        }
+        if (soft === false && comp) {
+            for (var prop in comp) {
+                delete this[prop];
+            }
+        }
+        delete this.__c[id];
+
+
+        return this;
+    },
+
+    /**@
+     * #.getId
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public Number .getId(void)
+     * @returns the ID of this entity.
+     *
+     * For better performance, simply use the this[0] property.
+     *
+     * @example
+     * Finding out the `ID` of an entity can be done by returning the property `0`.
+     * ~~~
+     *    var ent = Crafty.e("2D");
+     *    ent[0]; //ID
+     *    ent.getId(); //also ID
+     * ~~~
+     */
+    getId: function () {
+        return this[0];
+    },
+
+    /**@
+     * #.has
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public Boolean .has(String component)
+     * @param component - The name of the component to check
+     * @returns `true` or `false` depending on if the
+     * entity has the given component.
+     *
+     * For better performance, simply use the `.__c` object
+     * which will be `true` if the entity has the component or
+     * will not exist (or be `false`).
+     */
+    has: function (id) {
+        return !!this.__c[id];
+    },
+
+    /**@
+     * #.attr
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @trigger Change - when properties change - {key: value}
+     *
+     * @sign public this .attr(String property, Any value[, Boolean silent[, Boolean recursive]])
+     * @param property - Property of the entity to modify
+     * @param value - Value to set the property to
+     * @param silent - If you would like to supress events
+     * @param recursive - If you would like merge recursively
+     *
+     * Use this method to set any property of the entity.
+     *
+     * @sign public this .attr(Object map[, Boolean silent[, Boolean recursive]])
+     * @param map - Object where each key is the property to modify and the value as the property value
+     * @param silent - If you would like to supress events
+     * @param recursive - If you would like merge recursively
+     *
+     * Use this method to set multiple properties of the entity.
+     *
+     * Setter options:
+     * - `silent`: If you want to prevent it from firing events.
+     * - `recursive`: If you pass in an object you could overwrite sibling keys, this recursively merges instead of just merging it. This is `false` by default, unless you are using dot notation `name.first`.
+     *
+     * @sign public Any .attr(String property)
+     * @param property - Property of the entity to modify
+     * @returns Value - the value of the property
+     *
+     * Use this method to get any property of the entity. You can also retrieve the property using `this.property`.
+     * 
+     *
+     * @example
+     * ~~~
+     * this.attr({key: "value", prop: 5});
+     * this.attr("key"); // returns "value"
+     * this.attr("prop"); // returns 5
+     * this.key; // "value"
+     * this.prop; // 5
+     *
+     * this.attr("key", "newvalue");
+     * this.attr("key"); // returns "newvalue"
+     * this.key; // "newvalue"
+     *
+     * this.attr("parent.child", "newvalue");
+     * this.parent; // {child: "newvalue"};
+     * this.attr('parent.child'); // "newvalue"
+     * ~~~
+     */
+    attr: function (key, value, silent, recursive) {
+        if (arguments.length === 1 && typeof arguments[0] === 'string') {
+            return this._attr_get(key);
+        } else {
+            return this._attr_set(key, value, silent, recursive);
+        }
+    },
+
+    /**
+     * Internal getter method for data on the entity. Called by `.attr`.
+     *
+     * example
+     * ~~~
+     * person._attr_get('name'); // Foxxy
+     * person._attr_get('contact'); // {email: 'fox_at_example.com'}
+     * person._attr_get('contact.email'); // fox_at_example.com
+     * ~~~
+     */
+    _attr_get: function(key, context) {
+        var first, keys, subkey;
+        if (typeof context === "undefined" || context === null) {
+            context = this;
+        }
+        if (key.indexOf('.') > -1) {
+            keys = key.split('.');
+            first = keys.shift();
+            subkey = keys.join('.');
+            return this._attr_get(keys.join('.'), context[first]);
+        } else {
+            return context[key];
+        }
+    },
+
+    /**
+     * Internal setter method for attributes on the component. Called by `.attr`.
+     *
+     * Options:
+     *
+     * `silent`: If you want to prevent it from firing events.
+     *
+     * `recursive`: If you pass in an object you could overwrite
+     * sibling keys, this recursively merges instead of just
+     * merging it. This is `false` by default, unless you are
+     * using dot notation `name.first`.
+     *
+     * example
+     * ~~~
+     * person._attr_set('name', 'Foxxy', true);
+     * person._attr_set('name', 'Foxxy');
+     * person._attr_set({name: 'Foxxy'}, true);
+     * person._attr_set({name: 'Foxxy'});
+     * person._attr_set('name.first', 'Foxxy');
+     * ~~~
+     */
+    _attr_set: function() {
+        var data, silent, recursive;
+        if (typeof arguments[0] === 'string') {
+            data = this._set_create_object(arguments[0], arguments[1]);
+            silent = !!arguments[2];
+            recursive = arguments[3] || arguments[0].indexOf('.') > -1;
+        } else {
+            data = arguments[0];
+            silent = !!arguments[1];
+            recursive = !!arguments[2];
+        }
+
+        if (!silent) {
+            this.trigger('Change', data);
+        }
+
+        if (recursive) {
+            this._recursive_extend(data, this);
+        } else {
+            this.extend.call(this, data);
+        }
+        return this;
+    },
+
+    /**
+     * If you are setting a key of 'foo.bar' or 'bar', this creates
+     * the appropriate object for you to recursively merge with the
+     * current attributes.
+     */
+    _set_create_object: function(key, value) {
+        var data = {}, keys, first, subkey;
+        if (key.indexOf('.') > -1) {
+            keys = key.split('.');
+            first = keys.shift();
+            subkey = keys.join('.');
+            data[first] = this._set_create_object(subkey, value);
+        } else {
+            data[key] = value;
+        }
+        return data;
+    },
+
+    /**
+     * Recursively puts `new_data` into `original_data`.
+     */
+    _recursive_extend: function(new_data, original_data) {
+        var key;
+        for (key in new_data) {
+            if (new_data[key].constructor === Object) {
+                original_data[key] = this._recursive_extend(new_data[key], original_data[key]);
+            } else {
+                original_data[key] = new_data[key];
+            }
+        }
+        return original_data;
+    },
+
+    /**@
+     * #.toArray
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .toArray(void)
+     *
+     * This method will simply return the found entities as an array of ids.  To get an array of the actual entities, use `get()`.
+     * @see .get
+     */
+    toArray: function () {
+        return slice.call(this, 0);
+    },
+
+    /**@
+    * #.timeout
+    * @comp Crafty Core
+    * @kind Method
+
+    * @sign public this .timeout(Function callback, Number delay)
+    * @param callback - Method to execute after given amount of milliseconds
+    * @param delay - Amount of milliseconds to execute the method
+    *
+    * The delay method will execute a function after a given amount of time in milliseconds.
+    *
+    * Essentially a wrapper for `setTimeout`.
+    *
+    * @example
+    * Destroy itself after 100 milliseconds
+    * ~~~
+    * this.timeout(function() {
+         this.destroy();
+    * }, 100);
+    * ~~~
+    */
+    timeout: function (callback, duration) {
+        this.each(function () {
+            var self = this;
+            setTimeout(function () {
+                callback.call(self);
+            }, duration);
+        });
+        return this;
+    },
+
+    /**@
+     * #.bind
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .bind(String eventName, Function callback)
+     * @param eventName - Name of the event to bind to
+     * @param callback - Method to execute when the event is triggered
+     *
+     * Attach the current entity (or entities) to listen for an event.
+     *
+     * Callback will be invoked when an event with the event name passed
+     * is triggered. Depending on the event, some data may be passed
+     * via an argument to the callback function.
+     *
+     * The first argument is the event name (can be anything) whilst the
+     * second argument is the callback. If the event has data, the
+     * callback should have an argument.
+     *
+     * Events are arbitrary and provide communication between components.
+     * You can trigger or bind an event even if it doesn't exist yet.
+     *
+     * Unlike DOM events, Crafty events are executed synchronously.
+     *
+     * @example
+     * ~~~
+     * this.attr("triggers", 0); //set a trigger count
+     * this.bind("myevent", function() {
+     *     this.triggers++; //whenever myevent is triggered, increment
+     * });
+     * this.bind("EnterFrame", function() {
+     *     this.trigger("myevent"); //trigger myevent on every frame
+     * });
+     * ~~~
+     *
+     * @see .trigger, .unbind
+     */
+    bind: function (event, callback) {
+        //  To learn how the event system functions, see the comments for Crafty._callbackMethods
+        //optimization for 1 entity
+        if (this.length === 1) {
+            this._bindCallback(event, callback);
+        } else {
+            for (var i = 0; i < this.length; i++) {
+                var e = entities[this[i]];
+                if (e) {
+                    e._bindCallback(event, callback);
+                }
+            }
+        }
+        return this;
+    },
+
+    /**@
+     * #.uniqueBind
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public Number .uniqueBind(String eventName, Function callback)
+     * @param eventName - Name of the event to bind to
+     * @param callback - Method to execute upon event triggered
+     * @returns ID of the current callback used to unbind
+     *
+     * Works like Crafty.bind, but prevents a callback from being bound multiple times.
+     *
+     * @see .bind
+     */
+    uniqueBind: function (event, callback) {
+        this.unbind(event, callback);
+        this.bind(event, callback);
+
+    },
+
+    /**@
+     * #.one
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public Number one(String eventName, Function callback)
+     * @param eventName - Name of the event to bind to
+     * @param callback - Method to execute upon event triggered
+     * @returns ID of the current callback used to unbind
+     *
+     * Works like Crafty.bind, but will be unbound once the event triggers.
+     *
+     * @see .bind
+     */
+    one: function (event, callback) {
+        var self = this;
+        var oneHandler = function (data) {
+            callback.call(self, data);
+            self.unbind(event, oneHandler);
+        };
+        return self.bind(event, oneHandler);
+
+    },
+
+    /**@
+     * #.unbind
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .unbind(String eventName[, Function callback])
+     * @param eventName - Name of the event to unbind
+     * @param callback - Function to unbind
+     *
+     * Removes binding with an event from current entity.
+     *
+     * Passing an event name will remove all events bound to
+     * that event. Passing a reference to the callback will
+     * unbind only that callback.
+     * @see .bind, .trigger
+     */
+    unbind: function (event, callback) {
+        //  To learn how the event system functions, see the comments for Crafty._callbackMethods
+        var i, e;
+        for (i = 0; i < this.length; i++) {
+            e = entities[this[i]];
+            if (e) {
+                e._unbindCallbacks(event, callback);
+            }
+        }
+        return this;
+    },
+
+    /**@
+     * #.trigger
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .trigger(String eventName[, Object data])
+     * @param eventName - Event to trigger
+     * @param data - Arbitrary data that will be passed into every callback as an argument
+     *
+     * Trigger an event with arbitrary data. Will invoke all callbacks with
+     * the context (value of `this`) of the current entity object.
+     *
+     * *Note: This will only execute callbacks within the current entity, no other entity.*
+     *
+     * The first argument is the event name to trigger and the optional
+     * second argument is the arbitrary event data. This can be absolutely anything.
+     *
+     * Unlike DOM events, Crafty events are executed synchronously.
+     */
+    trigger: function (event, data) {
+        //  To learn how the event system functions, see the comments for Crafty._callbackMethods
+        if (this.length === 1) {
+            //find the handlers assigned to the entity
+            this._runCallbacks(event, data);
+         } else {
+            for (var i = 0; i < this.length; i++) {
+                var e = entities[this[i]];
+                if (e) {
+                    e._runCallbacks(event, data);
+                }
+            }
+        }
+        return this;
+    },
+
+    /**@
+     * #.each
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .each(Function method)
+     * @param method - Method to call on each iteration
+     *
+     * Iterates over found entities, calling a function for every entity.
+     *
+     * The function will be called for every entity and will pass the index
+     * in the iteration as an argument. The context (value of `this`) of the
+     * function will be the current entity in the iteration.
+     *
+     * @example
+     * Destroy every second 2D entity
+     * ~~~
+     * Crafty("2D").each(function(i) {
+     *     if(i % 2 === 0) {
+     *         this.destroy();
+     *     }
+     * });
+     * ~~~
+     */
+    each: function (func) {
+        var i = 0,
+            l = this.length;
+        for (; i < l; i++) {
+            //skip if not exists
+            if (!entities[this[i]]) continue;
+            func.call(entities[this[i]], i);
+        }
+        return this;
+    },
+
+    /**@
+     * #.get
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public Array .get()
+     * @returns An array of entities corresponding to the active selector
+     *
+     * @sign public Entity .get(Number index)
+     * @returns an entity belonging to the current selection
+     * @param index - The index of the entity to return.  If negative, counts back from the end of the array.
+     *
+     *
+     * @example
+     * Get an array containing every "2D" entity
+     * ~~~
+     * var arr = Crafty("2D").get()
+     * ~~~
+     * Get the first entity matching the selector
+     * ~~~
+     * // equivalent to Crafty("2D").get()[0], but doesn't create a new array
+     * var e = Crafty("2D").get(0)
+     * ~~~
+     * Get the last "2D" entity matching the selector
+     * ~~~
+     * var e = Crafty("2D").get(-1)
+     * ~~~
+     *
+     */
+    get: function(index) {
+        var l = this.length;
+        if (typeof index !== "undefined") {
+            if (index >= l || index+l < 0)
+                return undefined;
+            if (index>=0)
+                return entities[this[index]];
+            else
+                return entities[this[index+l]];
+        } else {
+            var i=0, result = [];
+            for (; i < l; i++) {
+                //skip if not exists
+                if (!entities[this[i]]) continue;
+                result.push( entities[this[i]] );
+            }
+            return result;
+        }
+    },
+
+    /**@
+     * #.clone
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public Entity .clone(void)
+     * @returns Cloned entity of the current entity
+     *
+     * Method will create another entity with the exact same
+     * properties, components and methods as the current entity.
+     */
+    clone: function () {
+        var comps = this.__c,
+            comp,
+            prop,
+            clone = Crafty.e();
+
+        for (comp in comps) {
+            clone.addComponent(comp);
+        }
+        for (prop in this) {
+            if (prop !== "0" && prop !== "_global" && prop !== "_changed" && typeof this[prop] !== "function" && typeof this[prop] !== "object") {
+                clone[prop] = this[prop];
+            }
+        }
+
+        return clone;
+    },
+
+
+    /**@
+     * #.setter
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .setter(String property, Function callback)
+     * @param property - Property to watch for modification
+     * @param callback - Method to execute if the property is modified
+     *
+     * Will watch a property waiting for modification and will then invoke the
+     * given callback when attempting to modify.
+     *
+     * This feature is deprecated; use .defineField() instead.
+     * @see .defineField
+     */
+    setter: function (prop, callback) {
+        return this.defineField(prop, function(){}, callback);
+    },
+
+    /**@
+     * #.defineField
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .defineField(String property, Function getCallback, Function setCallback)
+     * @param property - Property name to assign getter & setter to
+     * @param getCallback - Method to execute if the property is accessed
+     * @param setCallback - Method to execute if the property is mutated
+     *
+     * Assigns getters and setters to the property. 
+     * A getter will watch a property waiting for access and will then invoke the
+     * given getCallback when attempting to retrieve.
+     * A setter will watch a property waiting for mutation and will then invoke the
+     * given setCallback when attempting to modify.
+     *
+     * @example
+     * ~~~
+     * var ent = Crafty.e("2D");
+     * ent.defineField("customData", function() { 
+     *    return this._customData; 
+     * }, function(newValue) { 
+     *    this._customData = newValue;
+     * });
+     *
+     * ent.customData = "2" // set customData to 2
+     * Crafty.log(ent.customData) // prints 2
+     * ~~~
+     */
+    defineField: function (prop, getCallback, setCallback) {
+        Crafty.defineField(this, prop, getCallback, setCallback);
+        return this;
+    },
+
+    /**@
+     * #.destroy
+     * @comp Crafty Core
+     * @kind Method
+     * 
+     * @sign public this .destroy(void)
+     * Will remove all event listeners and delete all properties as well as removing from the stage
+     */
+    destroy: function () {
+        //remove all event handlers, delete from entities
+        this.each(function () {
+            var comp;
+            this.trigger("Remove");
+            for (var compName in this.__c) {
+                comp = components[compName];
+                if (comp && "remove" in comp)
+                    comp.remove.call(this, true);
+            }
+            this._unbindAll();
+            delete entities[this[0]];
+        });
+    }
+};
+
+//give the init instances the Crafty prototype
+Crafty.fn.init.prototype = Crafty.fn;
+
+
+/**@
+ * #Crafty.extend
+ * @category Core
+ * @kind Method
+ * 
+ * @sign public this Crafty.extend(Object obj)
+ * @param obj - An object whose fields will be copied onto Crafty.  This is a shallow copy.
+ *
+ * Used to extend the Crafty namespace by passing in an object of properties and methods to add.
+ *
+ * @example
+ * ~~~ * 
+ * Crafty.extend({
+ *   isArray: function(arg){
+ *     return Object.prototype.toString.call(arg) === '[object Array]'
+ *   }
+ * });
+ * 
+ * Crafty.isArray([4, 5, 6]);  // returns true
+ * Crafty.isArray('hi');       // returns false
+ * ~~~
+ */
+Crafty.extend = Crafty.fn.extend = function (obj) {
+    var target = this,
+        key;
+
+    //don't bother with nulls
+    if (!obj) return target;
+
+    for (key in obj) {
+        if (target === obj[key]) continue; //handle circular reference
+        target[key] = obj[key];
+    }
+
+    return target;
+};
+
+
+
+
+// How Crafty handles events and callbacks
+// -----------------------------------------
+// Callbacks are stored in the global object `handlers`, which has properties for each event.  
+// These properties point to an object which has a property for each entity listening to the event.
+// These in turn are arrays containing the callbacks to be triggered.
+// 
+// Here is an example of what "handlers" can look like:
+//     handlers ===
+//         { Move:  {5:[fnA], 6:[fnB, fnC], global:[fnD]},
+//         Change: {6:[fnE]}
+//         }
+// In this example, when the 'Move' event is triggered on entity #6 (e.g.
+// entity6.trigger('Move')), it causes the execution of fnB() and fn
