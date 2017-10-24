@@ -25,6 +25,7 @@ app.post("/metadata", upload.single('myFile'), function(request, response) {
         console.log("No POST on Sundays!");
         response.send ("There was an error! No file found! BB");
       }
+  delete request.file;
   //response.send(request.file.size.toString());
 });
 
